@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QPointF, Qt
+from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QBrush, QPen
-from PySide6.QtWidgets import QGraphicsItem, QGraphicsRectItem, QGraphicsSimpleTextItem, QGraphicsScene, QGraphicsView
+from PySide6.QtWidgets import QGraphicsItem
 
 from app.ui.sources.source_item import SourceItem
 from app.ui.widgets.workspace_item import WorkspaceItem
@@ -36,8 +36,6 @@ class WorkspaceRenderer:
         self.workspace_items.clear()
 
     def _workspace_position(self, workspace, default_x: float) -> QPointF:
-        # En editor, x/y del VirtualSpace representan la posición lógica.
-        # Las posiciones físicas de los monitores se mantienen en Settings.
         return QPointF(
             float(getattr(workspace, "x", default_x)),
             float(getattr(workspace, "y", 0)),
@@ -65,10 +63,9 @@ class WorkspaceRenderer:
     def render_scene_for_editing(self, scene) -> None:
         """Renderiza la escena seleccionada sin tocar el estado del programa."""
         self._clear_sources()
-        self.graphics_scene.clear()
+        for item in self.workspace_items:
+            item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
 
-        # El canvas siempre se conserva: renderizamos los espacios primero.
-        self._create_workspaces()
         if scene is None:
             return
 
@@ -151,8 +148,7 @@ class WorkspaceRenderer:
             intersection = source_rect.intersected(workspace.sceneBoundingRect())
             if intersection.isEmpty():
                 continue
-            local = source_item.mapFromScene(intersection)
-            path.addPolygon(local)
+            path.addPolygon(source_item.mapFromScene(intersection))
 
         source_item._clip_path = path
         source_item.setVisible(not path.isEmpty())
