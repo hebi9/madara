@@ -1,27 +1,15 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QPointF, QRectF
-from PySide6.QtGui import QPainterPath
+from PySide6.QtCore import QPointF, Qt
+from PySide6.QtGui import QColor, QBrush, QPen
+from PySide6.QtWidgets import QGraphicsItem, QGraphicsRectItem, QGraphicsSimpleTextItem, QGraphicsScene, QGraphicsView
 
-from app.sources.image_source import ImageSource
-from app.sources.text_source import TextSource
-from app.sources.video_source import VideoSource
-from app.sources.url_source import UrlSource
-from app.ui.sources.image_source_item import ImageSourceItem
 from app.ui.sources.source_item import SourceItem
-from app.ui.sources.text_source_item import TextSourceItem
-from app.ui.sources.video_source_item import VideoSourceItem
-from app.ui.sources.url_source_item import UrlSourceItem
 from app.ui.widgets.workspace_item import WorkspaceItem
 
 
 class WorkspaceRenderer:
-    """Construye la representación gráfica de los espacios del editor.
-
-    Este renderer trabaja exclusivamente con el modelo lógico VirtualSpace.
-    La configuración de monitores físicos pertenece a MonitorLayoutView en
-    su modo de configuración y nunca llega aquí.
-    """
+    """Renderiza únicamente el editor lógico."""
 
     def __init__(self, graphics_scene, scale: float = 0.15, gap: float = 60) -> None:
         self.graphics_scene = graphics_scene
@@ -34,20 +22,12 @@ class WorkspaceRenderer:
         self.monitors = []
         self.editable = False
 
-    def set_workspaces(
-        self,
-        workspaces,
-        monitor_positions=None,
-        monitors=None,
-        editable=None,
-    ) -> None:
+    def set_workspaces(self, workspaces, monitor_positions=None, monitors=None, editable=None) -> None:
         self.virtual_spaces = list(workspaces or [])
         self.monitor_positions = monitor_positions or {}
         self.monitors = list(monitors or [])
-
         if editable is not None:
             self.editable = editable
-
         self._create_workspaces()
 
     def clear(self) -> None:
@@ -56,16 +36,8 @@ class WorkspaceRenderer:
         self.workspace_items.clear()
 
     def _workspace_position(self, workspace, default_x: float) -> QPointF:
-        monitor_name = getattr(workspace, "monitor_name", None)
-        if monitor_name:
-            position = self.monitor_positions.get(monitor_name)
-            if position is not None:
-                if isinstance(position, QPointF):
-                    return position
-                return QPointF(position[0], position[1])
-
-        # x/y del modelo son la posición lógica del espacio cuando no
-        # existe una posición física guardada para su monitor.
+        # En editor, x/y del VirtualSpace representan la posición lógica.
+        # Las posiciones físicas de los monitores se mantienen en Settings.
         return QPointF(
             float(getattr(workspace, "x", default_x)),
             float(getattr(workspace, "y", 0)),
@@ -80,24 +52,23 @@ class WorkspaceRenderer:
         for workspace in self.virtual_spaces:
             width = workspace.width * self.scale
             height = workspace.height * self.scale
-
             item = WorkspaceItem(workspace, width, height)
-            item.setFlag(
-                item.GraphicsItemFlag.ItemIsMovable,
-                self.editable,
-            )
+            item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, self.editable)
+            item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
             item.setPos(self._workspace_position(workspace, x))
-
             self.graphics_scene.addItem(item)
             self.workspace_items.append(item)
-
             x += width + self.gap
 
         self.update_scene_rect()
 
     def render_scene_for_editing(self, scene) -> None:
+        """Renderiza la escena seleccionada sin tocar el estado del programa."""
         self._clear_sources()
+        self.graphics_scene.clear()
 
+        # El canvas siempre se conserva: renderizamos los espacios primero.
+        self._create_workspaces()
         if scene is None:
             return
 
@@ -105,13 +76,21 @@ class WorkspaceRenderer:
             item = self.create_source_item(source_definition)
             if item is None:
                 continue
-
             self.graphics_scene.addItem(item)
             item.set_editable(self.editable)
             self.source_items.append(item)
             self.update_source_clip(item)
 
     def create_source_item(self, source_definition):
+        from app.sources.image_source import ImageSource
+        from app.sources.text_source import TextSource
+        from app.sources.video_source import VideoSource
+        from app.sources.url_source import UrlSource
+        from app.ui.sources.image_source_item import ImageSourceItem
+        from app.ui.sources.text_source_item import TextSourceItem
+        from app.ui.sources.video_source_item import VideoSourceItem
+        from app.ui.sources.url_source_item import UrlSourceItem
+
         source_type = getattr(source_definition, "type", "texto")
         path = getattr(source_definition, "path", "")
 
@@ -132,9 +111,7 @@ class WorkspaceRenderer:
             source = UrlSource.create(url)
             item_cls = UrlSourceItem
         elif source_type == "texto":
-            source = TextSource.create(
-                getattr(source_definition, "text", "Nuevo texto")
-            )
+            source = TextSource.create(getattr(source_definition, "text", "Nuevo texto"))
             item_cls = TextSourceItem
         else:
             return None
@@ -152,14 +129,8 @@ class WorkspaceRenderer:
             workspace_view=self,
         )
         item.source_definition = source_definition
-        item.set_source_position(
-            source_definition.x,
-            source_definition.y,
-        )
-        item.set_source_size(
-            source_definition.width,
-            source_definition.height,
-        )
+        item.set_source_position(source_definition.x, source_definition.y)
+        item.set_source_size(source_definition.width, source_definition.height)
         return item
 
     def _clear_sources(self) -> None:
@@ -167,28 +138,19 @@ class WorkspaceRenderer:
             dispose = getattr(item, "dispose", None)
             if dispose is not None:
                 dispose()
-
             if item.scene() is not None:
                 self.graphics_scene.removeItem(item)
-
         self.source_items.clear()
 
     def update_source_clip(self, source_item, clip_items=None) -> None:
-        path = QPainterPath()
+        path = source_item._clip_path.__class__()
         source_rect = source_item.sceneBoundingRect()
-        clipping_items = (
-            clip_items
-            if clip_items is not None
-            else self.workspace_items
-        )
+        clipping_items = clip_items if clip_items is not None else self.workspace_items
 
         for workspace in clipping_items:
-            intersection = source_rect.intersected(
-                workspace.sceneBoundingRect()
-            )
+            intersection = source_rect.intersected(workspace.sceneBoundingRect())
             if intersection.isEmpty():
                 continue
-
             local = source_item.mapFromScene(intersection)
             path.addPolygon(local)
 
@@ -207,7 +169,6 @@ class WorkspaceRenderer:
             for item in self.workspace_items:
                 rect = rect.united(item.sceneBoundingRect())
             rect.adjust(-margin, -margin, margin, margin)
-
         self.graphics_scene.setSceneRect(rect)
         return rect
 
@@ -228,15 +189,6 @@ class WorkspaceRenderer:
 
     def get_workspace_item_for_monitor(self, monitor_name):
         for item in self.workspace_items:
-            workspace = item.workspace
-            if getattr(workspace, "monitor_name", None) == monitor_name:
+            if getattr(item.workspace, "monitor_name", None) == monitor_name:
                 return item
         return None
-
-    def monitor_positions_snapshot(self):
-        positions = {}
-        for item in self.workspace_items:
-            name = getattr(item.workspace, "name", None)
-            if name:
-                positions[name] = item.pos()
-        return positions
