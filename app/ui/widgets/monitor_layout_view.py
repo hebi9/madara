@@ -4,7 +4,6 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QPainterPath
 from PySide6.QtWidgets import (
     QGraphicsScene,
-    QGraphicsRectItem,
     QGraphicsView,
 )
 

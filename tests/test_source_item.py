@@ -88,3 +88,49 @@ def test_scenes_are_independent_of_selected_space(qapp):
     # un espacio virtual no debe ocultar escenas de otros espacios.
     assert first_scene.name in displayed_names
     assert second_scene.name in displayed_names
+
+
+def test_editing_selection_never_touches_program_scene(qapp):
+    from app.models.project import SourceDefinition
+
+    window = MainWindow()
+
+    space = window._create_space()
+    scene = window._create_scene()  # sin espacio: no debe activarse solo
+
+    assert space.active_scene is None
+
+    source = SourceDefinition(
+        name="Texto 1",
+        type="texto",
+        x=0,
+        y=0,
+        width=100,
+        height=100,
+        text="hola",
+    )
+    scene.sources.append(source)
+
+    # Simular navegación/edición del usuario: nada de esto debe
+    # tocar la escena de Programa (salida en vivo).
+    window._scene_selected(scene)
+    window._source_selected(source)
+    window._space_selected(space)
+    window._scene_selected(scene)
+
+    assert window.monitor_view.program_source_items == []
+    assert space.active_scene is None
+
+    # Solo la acción explícita "activar" pone la escena en vivo.
+    window.activate_scene_for_space(space, scene)
+
+    assert space.active_scene is scene
+    assert len(window.monitor_view.program_source_items) == 1
+    assert window.monitor_view.program_source_items[0].owner_space is space
+
+    # Seguir editando/seleccionando NO debe alterar lo que ya está
+    # en Programa.
+    window._source_selected(source)
+    window._space_selected(space)
+
+    assert len(window.monitor_view.program_source_items) == 1
