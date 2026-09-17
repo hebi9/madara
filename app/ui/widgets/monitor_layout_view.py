@@ -89,7 +89,8 @@ class MonitorLayoutView(QGraphicsView):
 
     def render_scene_for_editing(self, scene): self.renderer.render_scene_for_editing(scene); self._update_view_from_scene()
 
-    def render_active_scenes(self): self._rebuild_program_workspaces();
+    def render_active_scenes(self): 
+        self._rebuild_program_workspaces();
         
         for program_workspace_item in self._program_workspace_items:
             scene = getattr(program_workspace_item.workspace, 'active_scene', None)
