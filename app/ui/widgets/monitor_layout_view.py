@@ -100,16 +100,9 @@ class MonitorLayoutView(QGraphicsView):
             editable=self.editable,
         )
 
-        # La disposición física de Settings se aplica aquí únicamente como
-        # posición visual del EV asignado al monitor. No modifica su tamaño,
-        # ni la geometría lógica del proyecto.
-        for item in self.renderer.workspace_items:
-            position = self._monitor_positions.get(
-                getattr(item.workspace, "monitor_name", None)
-            )
-            if position is not None:
-                item.setPos(self._to_qpointf(position))
-
+        # El editor es completamente lógico. La asignación física de un
+        # monitor NO mueve el VirtualSpace ni altera sus coordenadas x/y.
+        # La posición física se aplica exclusivamente al snapshot de programa.
         self.renderer.update_scene_rect()
         self._update_view_from_scene()
 
@@ -119,15 +112,8 @@ class MonitorLayoutView(QGraphicsView):
 
         self.renderer.render_scene_for_editing(scene)
 
-        # render_scene_for_editing reconstruye los WorkspaceItems; reaplicamos
-        # la posición física al EV correspondiente sin tocar VirtualSpace.x/y.
-        for item in self.renderer.workspace_items:
-            position = self._monitor_positions.get(
-                getattr(item.workspace, "monitor_name", None)
-            )
-            if position is not None:
-                item.setPos(self._to_qpointf(position))
-
+        # La escena seleccionada se edita siempre en coordenadas lógicas.
+        # Nunca usamos la posición física del monitor para mover el EV.
         self.renderer.update_scene_rect()
         self._update_view_from_scene()
 
