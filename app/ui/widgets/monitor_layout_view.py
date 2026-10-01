@@ -355,12 +355,9 @@ class MonitorLayoutView(QGraphicsView):
         self._program_snapshot = snapshot
 
     def _program_workspace_position(self, workspace) -> QPointF:
-        monitor_name = getattr(workspace, "monitor_name", None)
-        position = self._monitor_positions.get(monitor_name)
-
-        if position is not None:
-            return self._to_qpointf(position)
-
+        # El Programa conserva exactamente las coordenadas lógicas del
+        # proyecto. La posición física del monitor pertenece al escritorio
+        # de Windows y NO debe entrar en las coordenadas de la escena.
         return QPointF(
             float(getattr(workspace, "x", 0)),
             float(getattr(workspace, "y", 0)),
