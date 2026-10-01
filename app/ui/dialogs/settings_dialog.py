@@ -15,15 +15,14 @@ from PySide6.QtWidgets import (
     QStackedWidget,
     QVBoxLayout,
     QWidget,
+    QGraphicsView,
 )
 
 from app.services.monitor_service import MonitorInfo, MonitorService
 from app.ui.widgets.monitor_layout_view import MonitorLayoutView
-from PySide6.QtWidgets import QGraphicsView
 
 
 class SettingsDialog(QDialog):
-
     def __init__(
         self,
         active_monitor_names: set[str] | None = None,
@@ -47,6 +46,7 @@ class SettingsDialog(QDialog):
             "play": "Ctrl+P",
             "stop": "Ctrl+Shift+P",
         }
+
         self._checkboxes: dict[str, QCheckBox] = {}
         self._setup_ui()
 
@@ -64,7 +64,9 @@ class SettingsDialog(QDialog):
         self.pages = QStackedWidget()
         self.pages.addWidget(self._create_screens_page())
         self.pages.addWidget(self._create_shortcuts_page())
-        self.navigation.currentRowChanged.connect(self.pages.setCurrentIndex)
+        self.navigation.currentRowChanged.connect(
+            self.pages.setCurrentIndex
+        )
         content_layout.addWidget(self.pages, stretch=1)
         main_layout.addLayout(content_layout)
 
@@ -72,7 +74,7 @@ class SettingsDialog(QDialog):
             QDialogButtonBox.StandardButton.Ok
             | QDialogButtonBox.StandardButton.Cancel
         )
-        buttons.accepted.connect(self.accept)
+        buttons.accepted.connect(self._accept_settings)
         buttons.rejected.connect(self.reject)
         main_layout.addWidget(buttons)
 
@@ -81,7 +83,9 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(content)
 
         title = QLabel("Pantallas")
-        title.setStyleSheet("font-size: 22px; font-weight: bold;")
+        title.setStyleSheet(
+            "font-size: 22px; font-weight: bold;"
+        )
         layout.addWidget(title)
 
         description = QLabel(
@@ -97,19 +101,23 @@ class SettingsDialog(QDialog):
 
         for monitor in self.monitors:
             checkbox = QCheckBox(monitor.display_name)
-            checkbox.setChecked(monitor.name in self.active_monitor_names)
-            checkbox.toggled.connect(self._active_monitors_changed)
+            checkbox.setChecked(
+                monitor.name in self.active_monitor_names
+            )
+            checkbox.toggled.connect(
+                self._active_monitors_changed
+            )
             self._checkboxes[monitor.name] = checkbox
             selection_layout.addWidget(checkbox)
 
         layout.addWidget(selection)
 
         layout_title = QLabel("Disposición")
-        layout_title.setStyleSheet("font-size: 16px; font-weight: bold;")
+        layout_title.setStyleSheet(
+            "font-size: 16px; font-weight: bold;"
+        )
         layout.addWidget(layout_title)
 
-        # La configuración física debe mostrar siempre los monitores reales,
-        # sin pasar por VirtualSpace ni por la escena del programa.
         self.monitor_view = MonitorLayoutView(
             self._get_active_monitors(),
             editable=True,
@@ -120,17 +128,29 @@ class SettingsDialog(QDialog):
         self.monitor_view.setVerticalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAsNeeded
         )
-        self.monitor_view.setDragMode(QGraphicsView.DragMode.NoDrag)
-        self.monitor_view.set_monitor_positions(self.monitor_positions)
-        layout.addWidget(self.monitor_view, stretch=1)
+        self.monitor_view.setDragMode(
+            QGraphicsView.DragMode.NoDrag
+        )
+        self.monitor_view.set_monitor_positions(
+            self.monitor_positions
+        )
+        layout.addWidget(
+            self.monitor_view,
+            stretch=1,
+        )
+
         return content
 
     def _create_shortcuts_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
+
         title = QLabel("Atajos de teclado")
-        title.setStyleSheet("font-size: 22px; font-weight: bold;")
+        title.setStyleSheet(
+            "font-size: 22px; font-weight: bold;"
+        )
         layout.addWidget(title)
+
         description = QLabel(
             "Configura una combinación o una secuencia de teclas para cada comando."
         )
@@ -139,29 +159,61 @@ class SettingsDialog(QDialog):
 
         form = QFormLayout()
         self.shortcut_edits = {}
-        for command, label in (("play", "Reproducir"), ("stop", "Detener")):
-            edit = QKeySequenceEdit(QKeySequence(self.shortcuts.get(command, "")))
+
+        for command, label in (
+            ("play", "Reproducir"),
+            ("stop", "Detener"),
+        ):
+            edit = QKeySequenceEdit(
+                QKeySequence(
+                    self.shortcuts.get(
+                        command,
+                        "",
+                    )
+                )
+            )
             edit.setClearButtonEnabled(True)
             self.shortcut_edits[command] = edit
-            form.addRow(f"{label}:", edit)
+            form.addRow(
+                f"{label}:",
+                edit,
+            )
+
         layout.addLayout(form)
         layout.addStretch()
+
         return page
 
     def _get_active_monitors(self) -> list[MonitorInfo]:
         return [
             monitor
             for monitor in self.monitors
-            if self._checkboxes.get(monitor.name)
-            and self._checkboxes[monitor.name].isChecked()
+            if (
+                self._checkboxes.get(monitor.name)
+                and self._checkboxes[
+                    monitor.name
+                ].isChecked()
+            )
         ]
 
     def _active_monitors_changed(self) -> None:
-        self.monitor_positions.update(self.monitor_view.monitor_positions())
+        self._remember_current_positions()
+
         self.monitor_view.set_monitors(
             self._get_active_monitors(),
             self.monitor_positions,
         )
+
+    def _remember_current_positions(self) -> None:
+        current_positions = (
+            self.monitor_view.monitor_positions()
+        )
+        for name, position in current_positions.items():
+            self.monitor_positions[name] = QPointF(position)
+
+    def _accept_settings(self) -> None:
+        self._remember_current_positions()
+        self.accept()
 
     def selected_monitor_names(self) -> set[str]:
         return {
@@ -170,11 +222,20 @@ class SettingsDialog(QDialog):
             if checkbox.isChecked()
         }
 
-    def selected_monitor_positions(self) -> dict[str, QPointF]:
-        return self.monitor_view.monitor_positions()
+    def selected_monitor_positions(
+        self,
+    ) -> dict[str, QPointF]:
+        self._remember_current_positions()
+
+        return {
+            name: QPointF(position)
+            for name, position in self.monitor_positions.items()
+        }
 
     def selected_shortcuts(self) -> dict[str, str]:
         return {
-            command: edit.keySequence().toString(QKeySequence.SequenceFormat.NativeText)
+            command: edit.keySequence().toString(
+                QKeySequence.SequenceFormat.NativeText
+            )
             for command, edit in self.shortcut_edits.items()
         }
