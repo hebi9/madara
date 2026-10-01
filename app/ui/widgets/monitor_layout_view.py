@@ -338,6 +338,11 @@ class MonitorLayoutView(QGraphicsView):
                     sources.append(
                         {
                             "source": source,
+                            # Las fuentes del proyecto son coordenadas
+                            # globales. El propio EV define el origen de
+                            # cada salida física, por lo que el traslado a
+                            # coordenadas locales se hace únicamente al
+                            # construir el snapshot.
                             "x": float(source.x) - float(workspace.x),
                             "y": float(source.y) - float(workspace.y),
                             "width": float(source.width),
