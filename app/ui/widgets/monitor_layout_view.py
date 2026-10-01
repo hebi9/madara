@@ -14,7 +14,10 @@ class MonitorLayoutView(QGraphicsView):
     """Editor lógico y layout físico de monitores."""
 
     SCALE = 0.15
-    GAP = 60
+    GAP = 20
+    MIN_ZOOM = 0.05
+    MAX_ZOOM = 3.0
+    ZOOM_STEP = 1.15
 
     def __init__(self, workspaces=None, editable=False, monitors=None, parent=None) -> None:
         super().__init__(parent)
@@ -47,6 +50,10 @@ class MonitorLayoutView(QGraphicsView):
 
         self.setBackgroundBrush(QColor("#2b2b2b"))
         self.setFrameShape(QGraphicsView.Shape.NoFrame)
+
+        self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+        self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
+        self._zoom = 1.0
 
         if workspaces:
             first = workspaces[0]
@@ -105,6 +112,30 @@ class MonitorLayoutView(QGraphicsView):
         # La posición física se aplica exclusivamente al snapshot de programa.
         self.renderer.update_scene_rect()
         self._update_view_from_scene()
+
+    def _apply_zoom(self, factor: float) -> None:
+        target = self._zoom * factor
+        if target < self.MIN_ZOOM or target > self.MAX_ZOOM:
+            return
+        self.scale(factor, factor)
+        self._zoom = target
+
+    def wheelEvent(self, event) -> None:
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            factor = self.ZOOM_STEP if event.angleDelta().y() > 0 else 1 / self.ZOOM_STEP
+            self._apply_zoom(factor)
+            event.accept()
+            return
+        super().wheelEvent(event)
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() == Qt.Key.Key_0 and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            self.resetTransform()
+            self._zoom = 1.0
+            self._update_view_from_scene()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def render_scene_for_editing(self, scene) -> None:
         self._settings_mode = False
@@ -499,10 +530,12 @@ class MonitorLayoutView(QGraphicsView):
         if rect.isNull() or rect.isEmpty():
             return
 
-        self.fitInView(
-            rect,
-            Qt.AspectRatioMode.KeepAspectRatio,
-        )
+        if abs(self._zoom - 1.0) < 1e-9:
+            self.fitInView(
+                rect,
+                Qt.AspectRatioMode.KeepAspectRatio,
+            )
+
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -517,5 +550,5 @@ class MonitorLayoutView(QGraphicsView):
                     rect,
                     Qt.AspectRatioMode.KeepAspectRatio,
                 )
-        elif self.scene() is self.graphics_scene:
+        elif self.scene() is self.graphics_scene and abs(self._zoom - 1.0) < 1e-9:
             self._update_view_from_scene()
