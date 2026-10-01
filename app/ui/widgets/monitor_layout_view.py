@@ -384,6 +384,9 @@ class MonitorLayoutView(QGraphicsView):
             workspace.height * self.SCALE,
         )
 
+        # Este item es una representación inmutable del snapshot.
+        # Nunca debe escribir coordenadas de vuelta al VirtualSpace real.
+        item.position_changed_callback = None
         item.setFlag(
             item.GraphicsItemFlag.ItemIsMovable,
             False,
