@@ -141,11 +141,27 @@ class MonitorLayoutView(QGraphicsView):
         self._zoom = target
 
     def wheelEvent(self, event) -> None:
-        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            factor = self.ZOOM_STEP if event.angleDelta().y() > 0 else 1 / self.ZOOM_STEP
+        modifiers = event.modifiers()
+
+        if modifiers & Qt.KeyboardModifier.ControlModifier:
+            factor = (
+                self.ZOOM_STEP
+                if event.angleDelta().y() > 0
+                else 1 / self.ZOOM_STEP
+            )
             self._apply_zoom(factor)
             event.accept()
             return
+
+        if modifiers & Qt.KeyboardModifier.ShiftModifier:
+            delta = event.angleDelta().y() or event.angleDelta().x()
+            if delta:
+                self.horizontalScrollBar().setValue(
+                    self.horizontalScrollBar().value() - delta
+                )
+            event.accept()
+            return
+
         super().wheelEvent(event)
 
     def keyPressEvent(self, event) -> None:
