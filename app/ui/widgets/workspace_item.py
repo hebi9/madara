@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QBrush, QFont, QPen
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsRectItem, QGraphicsSimpleTextItem
 
@@ -15,7 +15,16 @@ class WorkspaceItem(QGraphicsRectItem):
         self.setPen(QPen(Qt.GlobalColor.black, 2))
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True)
         self._create_label()
+
+    def itemChange(self, change, value):
+        if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
+            if hasattr(self.workspace, "x") and hasattr(self.workspace, "y"):
+                position = value
+                self.workspace.x = float(position.x())
+                self.workspace.y = float(position.y())
+        return super().itemChange(change, value)
 
     def _label_text(self) -> str:
         monitor = getattr(self.workspace, "monitor_name", None) or "Sin monitor"
