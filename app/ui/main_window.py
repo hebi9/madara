@@ -70,6 +70,13 @@ class MainWindow(QMainWindow):
         self._restore_initial_selection()
 
     def _restore_initial_selection(self) -> None:
+        # La persistencia carga las entidades correctamente, pero los QListWidget
+        # necesitan reconstruirse explícitamente después de crear la UI.
+        # Sin esto, los objetos existen en memoria aunque las listas aparezcan
+        # vacías hasta que se cree una entidad nueva.
+        self._refresh_spaces()
+        self._refresh_scenes()
+
         if self.virtual_spaces:
             space = self.virtual_spaces[0]
             self.spaces_panel.list_widget.setCurrentRow(0)
