@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 @dataclass
 class Transform:
     logical_width: float
