@@ -316,9 +316,13 @@ class MonitorLayoutView(QGraphicsView):
         snapshot = []
 
         for workspace in self.virtual_spaces:
-            scene = getattr(workspace, "active_scene", None)
-            if scene is None:
+            # Todo VirtualSpace asignado a un monitor forma parte del Programa,
+            # aunque todavía no tenga una escena activa. En ese caso el output
+            # será negro, pero la ventana de reproducción sí existirá.
+            if not getattr(workspace, "monitor_name", None):
                 continue
+
+            scene = getattr(workspace, "active_scene", None)
 
             sources = [
                 {
