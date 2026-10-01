@@ -26,7 +26,6 @@ class PlaybackManager:
             app.processEvents()
 
         screens = QGuiApplication.screens()
-        scene = monitor_view.program_scene
 
         for screen in screens:
             if screen.name() not in monitor_names:
@@ -35,7 +34,9 @@ class PlaybackManager:
             monitor_item = monitor_view.get_program_monitor_item(
                 screen.name()
             )
-            if monitor_item is None:
+            scene = monitor_view.get_program_scene(screen.name())
+
+            if monitor_item is None or scene is None:
                 continue
 
             window = PlaybackWindow(
