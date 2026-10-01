@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 
 from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QImageReader,
+from PySide6.QtGui import QImageReader
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
