@@ -617,15 +617,21 @@ class MainWindow(QMainWindow):
 
     def _property_changed(self, obj) -> None:
         if isinstance(obj, VirtualSpace):
-            self._last_space_monitor_names[id(obj)] = obj.monitor_name
+            previous_monitor = self._last_space_monitor_names.get(id(obj))
+            current_monitor = obj.monitor_name
+
+            if current_monitor != previous_monitor:
+                self.monitor_view.adopt_monitor_position(obj)
+
+            self._last_space_monitor_names[id(obj)] = current_monitor
             self._refresh_spaces()
-            self.monitor_view.render_active_scenes()
         elif isinstance(obj, SourceDefinition):
             self._refresh_sources_for_scene(self.selected_scene)
             self.monitor_view.render_scene_for_editing(self.selected_scene)
         elif isinstance(obj, Scene):
             self._refresh_scenes()
             self.monitor_view.render_scene_for_editing(self.selected_scene)
+
         self._save_project_state()
 
     def _rename_space(self, space, name: str) -> None:
