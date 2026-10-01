@@ -429,6 +429,7 @@ class MonitorLayoutView(QGraphicsView):
                     continue
 
                 scene.addItem(item)
+                self._program_source_items.append(item)
 
             scene.setSceneRect(
                 QRectF(
