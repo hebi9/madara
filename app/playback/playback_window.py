@@ -57,8 +57,14 @@ class PlaybackWindow(QWidget):
 
     def render_scene(self) -> None:
 
-        monitor_rect = (
-            self.monitor_item.sceneBoundingRect()
+        # La escena recibida pertenece exclusivamente al VirtualSpace de este
+        # monitor. Su origen lógico siempre es (0, 0); por tanto no usamos
+        # ninguna coordenada global del editor para calcular la salida.
+        monitor_rect = QRectF(
+            0,
+            0,
+            float(self.monitor_item.workspace.width),
+            float(self.monitor_item.workspace.height),
         )
 
         width = self.screen.geometry().width()
