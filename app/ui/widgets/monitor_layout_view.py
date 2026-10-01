@@ -11,7 +11,12 @@ from app.ui.widgets.workspace_item import WorkspaceItem
 
 
 class MonitorLayoutView(QGraphicsView):
-    """Editor lógico y layout físico de monitores."""
+    """Editor lógico y constructor del snapshot de Programa.
+
+    Las coordenadas del proyecto son siempre lógicas. Los monitores físicos
+    solamente determinan en qué pantalla se presenta cada VirtualSpace y la
+    transformación final de resolución se realiza en PlaybackWindow.
+    """
 
     SCALE = 0.15
     GAP = 20
@@ -108,9 +113,6 @@ class MonitorLayoutView(QGraphicsView):
             editable=self.editable,
         )
 
-        # El editor es completamente lógico. La asignación física de un
-        # monitor NO mueve el VirtualSpace ni altera sus coordenadas x/y.
-        # La posición física se aplica exclusivamente al snapshot de programa.
         self.renderer.update_scene_rect()
         self._update_view_from_scene()
 
@@ -165,7 +167,10 @@ class MonitorLayoutView(QGraphicsView):
         super().wheelEvent(event)
 
     def keyPressEvent(self, event) -> None:
-        if event.key() == Qt.Key.Key_0 and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+        if (
+            event.key() == Qt.Key.Key_0
+            and event.modifiers() & Qt.KeyboardModifier.ControlModifier
+        ):
             self._reset_view_to_workspace_bounds()
             event.accept()
             return
@@ -176,14 +181,11 @@ class MonitorLayoutView(QGraphicsView):
         self.setScene(self.graphics_scene)
 
         self.renderer.render_scene_for_editing(scene)
-
-        # La escena seleccionada se edita en coordenadas lógicas. No
-        # sincronizamos automáticamente con el monitor físico aquí.
         self.renderer.update_scene_rect()
         self._update_view_from_scene()
 
     def adopt_monitor_position(self, workspace) -> None:
-        """Usa la posición física como posición inicial al asignar un monitor."""
+        """Usa la posición física como posición inicial al asignar monitor."""
         monitor_name = getattr(workspace, "monitor_name", None)
         if not monitor_name:
             return
@@ -316,17 +318,12 @@ class MonitorLayoutView(QGraphicsView):
         snapshot = []
 
         for workspace in self.virtual_spaces:
-            # Todo VirtualSpace asignado a un monitor forma parte del Programa,
-            # aunque todavía no tenga una escena activa. En ese caso el output
-            # será negro, pero la ventana de reproducción sí existirá.
-            if not getattr(workspace, "monitor_name", None):
+            monitor_name = getattr(workspace, "monitor_name", None)
+            if not monitor_name:
                 continue
 
             scene = getattr(workspace, "active_scene", None)
 
-            # Un espacio puede estar asignado a un monitor aunque todavía
-            # no tenga una escena activa. En ese caso su salida debe existir
-            # y ser negra, pero no debemos intentar acceder a scene.sources.
             sources = []
             if scene is not None:
                 sources = [
@@ -343,25 +340,17 @@ class MonitorLayoutView(QGraphicsView):
             snapshot.append(
                 {
                     "workspace": workspace,
-                    "monitor_name": workspace.monitor_name,
+                    "monitor_name": monitor_name,
                     "width": float(workspace.width),
                     "height": float(workspace.height),
-                    "position": self._program_workspace_position(workspace),
+                    "x": float(getattr(workspace, "x", 0.0)),
+                    "y": float(getattr(workspace, "y", 0.0)),
                     "scene": scene,
                     "sources": sources,
                 }
             )
 
         self._program_snapshot = snapshot
-
-    def _program_workspace_position(self, workspace) -> QPointF:
-        # El Programa conserva exactamente las coordenadas lógicas del
-        # proyecto. La posición física del monitor pertenece al escritorio
-        # de Windows y NO debe entrar en las coordenadas de la escena.
-        return QPointF(
-            float(getattr(workspace, "x", 0)),
-            float(getattr(workspace, "y", 0)),
-        )
 
     def render_active_scenes(self, capture_snapshot: bool = True) -> None:
         if capture_snapshot or self._program_snapshot is None:
@@ -376,6 +365,39 @@ class MonitorLayoutView(QGraphicsView):
     def push_scene_to_program(self, space) -> None:
         self.activate_scene_for_program(space)
 
+    def _create_program_workspace_item(self, state):
+        class _ProgramWorkspace:
+            pass
+
+        workspace = _ProgramWorkspace()
+        workspace.name = state["workspace"].name
+        workspace.monitor_name = state["monitor_name"]
+        workspace.width = state["width"]
+        workspace.height = state["height"]
+        workspace.x = state["x"]
+        workspace.y = state["y"]
+        workspace._program_sources = state["sources"]
+
+        item = WorkspaceItem(
+            workspace,
+            workspace.width * self.SCALE,
+            workspace.height * self.SCALE,
+        )
+
+        item.setFlag(
+            item.GraphicsItemFlag.ItemIsMovable,
+            False,
+        )
+        item.setFlag(
+            item.GraphicsItemFlag.ItemIsSelectable,
+            False,
+        )
+        item.setPos(
+            workspace.x * self.SCALE,
+            workspace.y * self.SCALE,
+        )
+        return item
+
     def _render_program_snapshot(self) -> None:
         self._rebuild_program_workspaces_from_snapshot()
 
@@ -389,39 +411,86 @@ class MonitorLayoutView(QGraphicsView):
             ):
                 source_definition = source_state["source"]
 
-                item = self.renderer.create_source_item(
-                    source_definition
+                # Programa usa su propia coordenada lógica global. No usa
+                # renderer.workspace_items ni las posiciones físicas.
+                item = self._create_program_source_item(
+                    source_definition,
+                    source_state,
                 )
-
                 if item is None:
                     continue
 
-                item.source.x = source_state["x"]
-                item.source.y = source_state["y"]
-                item.source.width = source_state["width"]
-                item.source.height = source_state["height"]
-
-                item.set_source_size(
-                    source_state["width"],
-                    source_state["height"],
-                )
-
-                item.setPos(
-                    program_workspace_item.x()
-                    + source_state["x"] * self.SCALE,
-                    program_workspace_item.y()
-                    + source_state["y"] * self.SCALE,
-                )
-
-                item.set_editable(False)
                 item.owner_space = state_workspace
-
                 self.program_scene.addItem(item)
                 self._program_source_items.append(item)
-
                 self._update_program_source_clip(item)
 
         self._update_program_scene_rect()
+
+    def _create_program_source_item(self, source_definition, source_state):
+        # Importamos desde el renderer solo la fábrica de tipos para conservar
+        # exactamente los mismos SourceItems, pero desacoplamos el item del
+        # renderer del editor. Esto evita que el clipping del editor modifique
+        # la visibilidad del Programa.
+        from app.sources.image_source import ImageSource
+        from app.sources.text_source import TextSource
+        from app.sources.video_source import VideoSource
+        from app.sources.url_source import UrlSource
+        from app.ui.sources.image_source_item import ImageSourceItem
+        from app.ui.sources.text_source_item import TextSourceItem
+        from app.ui.sources.video_source_item import VideoSourceItem
+        from app.ui.sources.url_source_item import UrlSourceItem
+
+        source_type = getattr(source_definition, "type", "texto")
+
+        if source_type == "imagen":
+            path = getattr(source_definition, "path", "")
+            if not path:
+                return None
+            source = ImageSource.create(path)
+            item_cls = ImageSourceItem
+        elif source_type == "video":
+            path = getattr(source_definition, "path", "")
+            if not path:
+                return None
+            source = VideoSource.create(path)
+            item_cls = VideoSourceItem
+        elif source_type == "url":
+            url = getattr(source_definition, "url", "")
+            if not url:
+                return None
+            source = UrlSource.create(url)
+            item_cls = UrlSourceItem
+        elif source_type == "texto":
+            source = TextSource.create(
+                getattr(source_definition, "text", "Nuevo texto")
+            )
+            item_cls = TextSourceItem
+        else:
+            return None
+
+        source.x = source_state["x"]
+        source.y = source_state["y"]
+        source.width = source_state["width"]
+        source.height = source_state["height"]
+
+        item = item_cls(
+            source=source,
+            scale=self.SCALE,
+            canvas_width=1,
+            canvas_height=1,
+            workspace_view=None,
+        )
+        item.set_editable(False)
+        item.set_source_size(
+            source_state["width"],
+            source_state["height"],
+        )
+        item.setPos(
+            source_state["x"] * self.SCALE,
+            source_state["y"] * self.SCALE,
+        )
+        return item
 
     def _rebuild_program_workspaces_from_snapshot(self) -> None:
         self._clear_program_items()
@@ -430,32 +499,7 @@ class MonitorLayoutView(QGraphicsView):
             return
 
         for state in self._program_snapshot:
-            class _ProgramWorkspace:
-                pass
-
-            workspace = _ProgramWorkspace()
-            workspace.name = state["workspace"].name
-            workspace.monitor_name = state["monitor_name"]
-            workspace.width = state["width"]
-            workspace.height = state["height"]
-            workspace._program_sources = state["sources"]
-
-            item = WorkspaceItem(
-                workspace,
-                workspace.width * self.SCALE,
-                workspace.height * self.SCALE,
-            )
-
-            item.setFlag(
-                item.GraphicsItemFlag.ItemIsMovable,
-                False,
-            )
-            item.setFlag(
-                item.GraphicsItemFlag.ItemIsSelectable,
-                False,
-            )
-            item.setPos(state["position"])
-
+            item = self._create_program_workspace_item(state)
             self.program_scene.addItem(item)
             self._program_workspace_items.append(item)
 
@@ -486,7 +530,6 @@ class MonitorLayoutView(QGraphicsView):
             dispose = getattr(item, "dispose", None)
             if dispose is not None:
                 dispose()
-
             if item.scene() is not None:
                 item.scene().removeItem(item)
 
@@ -576,7 +619,6 @@ class MonitorLayoutView(QGraphicsView):
                 Qt.AspectRatioMode.KeepAspectRatio,
             )
 
-
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
 
@@ -590,5 +632,8 @@ class MonitorLayoutView(QGraphicsView):
                     rect,
                     Qt.AspectRatioMode.KeepAspectRatio,
                 )
-        elif self.scene() is self.graphics_scene and abs(self._zoom - 1.0) < 1e-9:
+        elif (
+            self.scene() is self.graphics_scene
+            and abs(self._zoom - 1.0) < 1e-9
+        ):
             self._update_view_from_scene()
