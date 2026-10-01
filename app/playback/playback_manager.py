@@ -9,7 +9,6 @@ from app.playback.playback_window import PlaybackWindow
 class PlaybackManager:
 
     def __init__(self) -> None:
-
         self.windows: list[PlaybackWindow] = []
 
     def play(
@@ -17,24 +16,25 @@ class PlaybackManager:
         monitor_view,
         monitor_names: set[str],
     ) -> None:
-
         self.stop()
 
-        screens = QGuiApplication.screens()
+        # El stop() usa deleteLater(). Procesamos esos eventos antes de crear
+        # una nueva generación de ventanas para evitar que una reproducción
+        # anterior interfiera con el siguiente Play.
+        app = QGuiApplication.instance()
+        if app is not None:
+            app.processEvents()
 
+        screens = QGuiApplication.screens()
         scene = monitor_view.program_scene
 
         for screen in screens:
-
             if screen.name() not in monitor_names:
                 continue
 
-            monitor_item = (
-                monitor_view.get_program_monitor_item(
-                    screen.name()
-                )
+            monitor_item = monitor_view.get_program_monitor_item(
+                screen.name()
             )
-
             if monitor_item is None:
                 continue
 
@@ -44,30 +44,24 @@ class PlaybackManager:
                 monitor_item=monitor_item,
             )
 
-            self.windows.append(
-                window
-            )
-
-            window.destroyed.connect(
-                self._window_destroyed
-            )
-
+            self.windows.append(window)
+            window.destroyed.connect(self._window_destroyed)
             window.show_playback()
 
     def stop(self) -> None:
-
         windows = list(self.windows)
         self.windows.clear()
 
         for window in windows:
-
-            if not isValid(window) or not callable(
-                getattr(window, "close", None)
-            ):
+            if not isValid(window):
                 continue
 
             window.close()
             window.deleteLater()
+
+        app = QGuiApplication.instance()
+        if app is not None:
+            app.processEvents()
 
     def _window_destroyed(self, window) -> None:
         if window in self.windows:
@@ -75,7 +69,4 @@ class PlaybackManager:
 
     @property
     def is_playing(self) -> bool:
-
-        return bool(
-            self.windows
-        )
+        return bool(self.windows)
