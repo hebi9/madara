@@ -65,7 +65,7 @@ class WorkspaceRenderer:
             width = workspace.width * self.scale
             height = workspace.height * self.scale
             item = WorkspaceItem(workspace, width, height)
-            item.position_changed_callback = self.update_scene_rect
+            item.position_changed_callback = self._workspace_position_changed
             item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, self.editable)
             item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
             item.setPos(self._workspace_position(workspace, 0.0))
@@ -170,6 +170,14 @@ class WorkspaceRenderer:
 
     def constrain_source_position(self, source_item, value):
         return value
+
+    def _workspace_position_changed(self) -> None:
+        # Los EV son máscaras de clipping: moverlos no mueve las fuentes.
+        # Sí debemos recalcular qué parte de cada fuente queda visible.
+        for source_item in self.source_items:
+            self.update_source_clip(source_item)
+
+        self.update_scene_rect()
 
     def update_scene_rect(self, margin: float = 40) -> QRectF:
         """Ajusta el canvas al rectángulo invisible que engloba todos los EV."""
