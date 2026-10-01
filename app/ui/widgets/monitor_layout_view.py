@@ -15,6 +15,7 @@ class MonitorLayoutView(QGraphicsView):
 
     SCALE = 0.15
     GAP = 20
+    WORKSPACE_ORIGIN_PADDING = 250
     MIN_ZOOM = 0.05
     MAX_ZOOM = 3.0
     ZOOM_STEP = 1.15
@@ -113,6 +114,25 @@ class MonitorLayoutView(QGraphicsView):
         self.renderer.update_scene_rect()
         self._update_view_from_scene()
 
+    def _reset_view_to_workspace_bounds(self) -> None:
+        self.resetTransform()
+        self._zoom = 1.0
+
+        rect = self.graphics_scene.sceneRect()
+        if rect.isNull() or rect.isEmpty():
+            return
+
+        padded = rect.adjusted(
+            -self.WORKSPACE_ORIGIN_PADDING,
+            -self.WORKSPACE_ORIGIN_PADDING,
+            self.WORKSPACE_ORIGIN_PADDING,
+            self.WORKSPACE_ORIGIN_PADDING,
+        )
+        self.fitInView(
+            padded,
+            Qt.AspectRatioMode.KeepAspectRatio,
+        )
+
     def _apply_zoom(self, factor: float) -> None:
         target = self._zoom * factor
         if target < self.MIN_ZOOM or target > self.MAX_ZOOM:
@@ -130,9 +150,7 @@ class MonitorLayoutView(QGraphicsView):
 
     def keyPressEvent(self, event) -> None:
         if event.key() == Qt.Key.Key_0 and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            self.resetTransform()
-            self._zoom = 1.0
-            self._update_view_from_scene()
+            self._reset_view_to_workspace_bounds()
             event.accept()
             return
         super().keyPressEvent(event)
