@@ -165,7 +165,7 @@ class MainWindow(QMainWindow):
 
         self.monitor_view = MonitorLayoutView(
             self.virtual_spaces,
-            editable=False,
+            editable=True,
             monitors=self.monitors,
         )
         self.monitor_view.set_workspaces(
@@ -469,11 +469,16 @@ class MainWindow(QMainWindow):
         # Un VirtualSpace pertenece al proyecto lógico, no a una pantalla
         # física. La asignación del monitor se hace después, normalmente en
         # el recinto, cuando ya conocemos el hardware disponible.
+        index = len(self.virtual_spaces)
+        column = index % 3
+        row = index // 3
         space = VirtualSpace(
-            name=f"Espacio {len(self.virtual_spaces) + 1}",
+            name=f"Espacio {index + 1}",
             width=1920,
             height=1080,
-            monitor_name=None
+            x=column * 2020,
+            y=row * 1140,
+            monitor_name=None,
         )
         self.virtual_spaces.append(space)
         self._refresh_spaces()
