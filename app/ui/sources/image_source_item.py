@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap, QTransform
 from PySide6.QtWidgets import QGraphicsPixmapItem
 
@@ -45,13 +44,9 @@ class ImageSourceItem(SourceItem):
             workspace_view=workspace_view,
         )
 
-        self.pixmap_item = QGraphicsPixmapItem(
-            self
-        )
+        self.pixmap_item = QGraphicsPixmapItem(self)
 
-        self.pixmap = QPixmap(
-            source.path
-        )
+        self.pixmap = QPixmap(source.path)
 
         self.update_visual()
 
@@ -60,32 +55,37 @@ class ImageSourceItem(SourceItem):
         if self.pixmap.isNull():
             return
 
-        target_width = max(1.0, float(self.source.width * self.scale))
-        target_height = max(1.0, float(self.source.height * self.scale))
+        target_width = max(
+            1.0,
+            float(self.source.width * self.scale),
+        )
+
+        target_height = max(
+            1.0,
+            float(self.source.height * self.scale),
+        )
 
         # Conservamos el pixmap original a su resolución completa.
-        # No generamos una copia pequeña para el editor: esa copia después
-        # tendría que ampliarse en playback y produciría pixelación.
+        # No generamos una copia pequeña para el editor.
         scale_x = target_width / max(1, self.pixmap.width())
         scale_y = target_height / max(1, self.pixmap.height())
+
+        # Conservamos la proporción original de la imagen.
         image_scale = min(scale_x, scale_y)
 
         rendered_width = self.pixmap.width() * image_scale
         rendered_height = self.pixmap.height() * image_scale
 
         self.pixmap_item.setPixmap(self.pixmap)
+
         self.pixmap_item.setTransform(
-            QTransform.fromScale(image_scale, image_scale)
+            QTransform.fromScale(
+                image_scale,
+                image_scale,
+            )
         )
+
         self.pixmap_item.setPos(
             (target_width - rendered_width) / 2,
             (target_height - rendered_height) / 2,
-        )
-                target_width
-                - scaled.width()
-            ) / 2,
-            (
-                target_height
-                - scaled.height()
-            ) / 2,
         )
