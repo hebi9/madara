@@ -477,14 +477,12 @@ class MainWindow(QMainWindow):
         # física. La asignación del monitor se hace después, normalmente en
         # el recinto, cuando ya conocemos el hardware disponible.
         index = len(self.virtual_spaces)
-        column = index % 3
-        row = index // 3
         space = VirtualSpace(
             name=f"Espacio {index + 1}",
             width=1920,
             height=1080,
-            x=column * 1940,
-            y=row * 1100,
+            x=0,
+            y=0,
             monitor_name=None,
         )
         self.virtual_spaces.append(space)
@@ -628,10 +626,27 @@ class MainWindow(QMainWindow):
             current_monitor = obj.monitor_name
 
             if current_monitor != previous_monitor:
+                # La asignación física es un cambio estructural: aquí sí
+                # actualizamos el contexto completo y adoptamos la posición
+                # física una sola vez.
                 self.monitor_view.adopt_monitor_position(obj)
+                self._last_space_monitor_names[id(obj)] = current_monitor
+                self._refresh_spaces()
+            else:
+                # Cambiar ancho/alto no debe reconstruir el panel de
+                # propiedades en cada pulsación del QSpinBox. Actualizamos
+                # únicamente el elemento gráfico existente.
+                for item in self.monitor_view.workspace_items:
+                    if item.workspace is obj:
+                        item.set_workspace_size(
+                            obj.width,
+                            obj.height,
+                            self.monitor_view.renderer.scale,
+                        )
+                        break
 
-            self._last_space_monitor_names[id(obj)] = current_monitor
-            self._refresh_spaces()
+                self.monitor_view.renderer.update_scene_rect()
+                self.monitor_view._update_view_from_scene()
         elif isinstance(obj, SourceDefinition):
             self._refresh_sources_for_scene(self.selected_scene)
             self.monitor_view.render_scene_for_editing(self.selected_scene)
