@@ -324,16 +324,21 @@ class MonitorLayoutView(QGraphicsView):
 
             scene = getattr(workspace, "active_scene", None)
 
-            sources = [
-                {
-                    "source": source,
-                    "x": float(source.x),
-                    "y": float(source.y),
-                    "width": float(source.width),
-                    "height": float(source.height),
-                }
-                for source in scene.sources
-            ]
+            # Un espacio puede estar asignado a un monitor aunque todavía
+            # no tenga una escena activa. En ese caso su salida debe existir
+            # y ser negra, pero no debemos intentar acceder a scene.sources.
+            sources = []
+            if scene is not None:
+                sources = [
+                    {
+                        "source": source,
+                        "x": float(source.x),
+                        "y": float(source.y),
+                        "width": float(source.width),
+                        "height": float(source.height),
+                    }
+                    for source in scene.sources
+                ]
 
             snapshot.append(
                 {
