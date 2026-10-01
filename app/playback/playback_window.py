@@ -60,11 +60,15 @@ class PlaybackWindow(QWidget):
         # La escena recibida pertenece exclusivamente al VirtualSpace de este
         # monitor. Su origen lógico siempre es (0, 0); por tanto no usamos
         # ninguna coordenada global del editor para calcular la salida.
+        # Los QGraphicsItems del programa usan la misma escala lógica
+        # que el editor. El sourceRect de QGraphicsScene debe usar unidades
+        # de escena, no los pixeles lógicos del VirtualSpace.
+        scene_scale = 0.15
         monitor_rect = QRectF(
             0,
             0,
-            float(self.monitor_item.workspace.width),
-            float(self.monitor_item.workspace.height),
+            float(self.monitor_item.workspace.width) * scene_scale,
+            float(self.monitor_item.workspace.height) * scene_scale,
         )
 
         width = self.screen.geometry().width()
