@@ -466,25 +466,14 @@ class MainWindow(QMainWindow):
     # ==========================================================
 
     def _create_space(self):
-        assigned_monitors = {
-            space.monitor_name
-            for space in self.virtual_spaces
-            if space.monitor_name
-        }
-        available_monitor = next(
-            (
-                monitor.name
-                for monitor in self._get_active_monitors()
-                if monitor.name not in assigned_monitors
-            ),
-            None,
-        )
-
+        # Un VirtualSpace pertenece al proyecto lógico, no a una pantalla
+        # física. La asignación del monitor se hace después, normalmente en
+        # el recinto, cuando ya conocemos el hardware disponible.
         space = VirtualSpace(
             name=f"Espacio {len(self.virtual_spaces) + 1}",
             width=1920,
             height=1080,
-            monitor_name=available_monitor,
+            monitor_name=None
         )
         self.virtual_spaces.append(space)
         self._refresh_spaces()
