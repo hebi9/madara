@@ -476,8 +476,8 @@ class MainWindow(QMainWindow):
             name=f"Espacio {index + 1}",
             width=1920,
             height=1080,
-            x=column * 2020,
-            y=row * 1140,
+            x=column * 1940,
+            y=row * 1100,
             monitor_name=None,
         )
         self.virtual_spaces.append(space)
