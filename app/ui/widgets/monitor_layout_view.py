@@ -34,7 +34,12 @@ class MonitorLayoutView(QGraphicsView):
         self._monitor_positions: dict[str, QPointF] = {}
 
         self.graphics_scene = WorkspaceScene(self)
+
+        # Cada monitor tiene su propia escena de salida. Así nunca se
+        # superponen los VirtualSpace: cada salida siempre empieza en (0, 0)
+        # y ocupa exactamente el canvas lógico de su propio EV.
         self.program_scene = WorkspaceScene(self)
+        self._program_scenes: dict[str, WorkspaceScene] = {}
 
         self._program_workspace_items: list[WorkspaceItem] = []
         self._program_source_items = []
@@ -323,19 +328,22 @@ class MonitorLayoutView(QGraphicsView):
                 continue
 
             scene = getattr(workspace, "active_scene", None)
-
             sources = []
+
             if scene is not None:
-                sources = [
-                    {
-                        "source": source,
-                        "x": float(source.x),
-                        "y": float(source.y),
-                        "width": float(source.width),
-                        "height": float(source.height),
-                    }
-                    for source in scene.sources
-                ]
+                for source in scene.sources:
+                    # Las fuentes siguen siendo globales en el editor.
+                    # Para la salida de este EV se convierten a coordenadas
+                    # locales respecto de su esquina superior izquierda.
+                    sources.append(
+                        {
+                            "source": source,
+                            "x": float(source.x) - float(workspace.x),
+                            "y": float(source.y) - float(workspace.y),
+                            "width": float(source.width),
+                            "height": float(source.height),
+                        }
+                    )
 
             snapshot.append(
                 {
@@ -374,8 +382,10 @@ class MonitorLayoutView(QGraphicsView):
         workspace.monitor_name = state["monitor_name"]
         workspace.width = state["width"]
         workspace.height = state["height"]
-        workspace.x = state["x"]
-        workspace.y = state["y"]
+
+        # En la salida cada EV es un canvas independiente.
+        workspace.x = 0.0
+        workspace.y = 0.0
         workspace._program_sources = state["sources"]
 
         item = WorkspaceItem(
@@ -384,8 +394,6 @@ class MonitorLayoutView(QGraphicsView):
             workspace.height * self.SCALE,
         )
 
-        # Este item es una representación inmutable del snapshot.
-        # Nunca debe escribir coordenadas de vuelta al VirtualSpace real.
         item.position_changed_callback = None
         item.setFlag(
             item.GraphicsItemFlag.ItemIsMovable,
@@ -395,46 +403,47 @@ class MonitorLayoutView(QGraphicsView):
             item.GraphicsItemFlag.ItemIsSelectable,
             False,
         )
-        item.setPos(
-            workspace.x * self.SCALE,
-            workspace.y * self.SCALE,
-        )
+        item.setPos(0, 0)
         return item
 
     def _render_program_snapshot(self) -> None:
-        self._rebuild_program_workspaces_from_snapshot()
+        self._clear_program_items()
 
-        for program_workspace_item in self._program_workspace_items:
-            state_workspace = program_workspace_item.workspace
+        if self._program_snapshot is None:
+            return
 
-            for source_state in getattr(
-                state_workspace,
-                "_program_sources",
-                [],
-            ):
-                source_definition = source_state["source"]
+        for state in self._program_snapshot:
+            monitor_name = state["monitor_name"]
+            scene = WorkspaceScene(self)
+            self._program_scenes[monitor_name] = scene
 
-                # Programa usa su propia coordenada lógica global. No usa
-                # renderer.workspace_items ni las posiciones físicas.
+            workspace_item = self._create_program_workspace_item(state)
+            scene.addItem(workspace_item)
+
+            for source_state in state["sources"]:
                 item = self._create_program_source_item(
-                    source_definition,
+                    source_state["source"],
                     source_state,
                 )
                 if item is None:
                     continue
 
-                item.owner_space = state_workspace
-                self.program_scene.addItem(item)
-                self._program_source_items.append(item)
-                self._update_program_source_clip(item)
+                scene.addItem(item)
 
-        self._update_program_scene_rect()
+            scene.setSceneRect(
+                QRectF(
+                    0,
+                    0,
+                    state["width"] * self.SCALE,
+                    state["height"] * self.SCALE,
+                )
+            )
+
+            # Se conserva esta lista para depuración/compatibilidad, pero
+            # cada item pertenece exclusivamente a su escena de monitor.
+            self._program_workspace_items.append(workspace_item)
 
     def _create_program_source_item(self, source_definition, source_state):
-        # Importamos desde el renderer solo la fábrica de tipos para conservar
-        # exactamente los mismos SourceItems, pero desacoplamos el item del
-        # renderer del editor. Esto evita que el clipping del editor modifique
-        # la visibilidad del Programa.
         from app.sources.image_source import ImageSource
         from app.sources.text_source import TextSource
         from app.sources.video_source import VideoSource
@@ -495,69 +504,32 @@ class MonitorLayoutView(QGraphicsView):
         )
         return item
 
-    def _rebuild_program_workspaces_from_snapshot(self) -> None:
-        self._clear_program_items()
-
-        if self._program_snapshot is None:
-            return
-
-        for state in self._program_snapshot:
-            item = self._create_program_workspace_item(state)
-            self.program_scene.addItem(item)
-            self._program_workspace_items.append(item)
-
-        self._update_program_scene_rect()
-
-    def _update_program_source_clip(self, source_item) -> None:
-        path = source_item._clip_path.__class__()
-        source_rect = source_item.sceneBoundingRect()
-
-        for workspace_item in self._program_workspace_items:
-            intersection = source_rect.intersected(
-                workspace_item.sceneBoundingRect()
-            )
-
-            if intersection.isEmpty():
-                continue
-
-            path.addPolygon(
-                source_item.mapFromScene(intersection)
-            )
-
-        source_item._clip_path = path
-        source_item.setVisible(not path.isEmpty())
-        source_item.update()
-
     def _clear_program_items(self) -> None:
         for item in self._program_source_items:
             dispose = getattr(item, "dispose", None)
             if dispose is not None:
                 dispose()
-            if item.scene() is not None:
-                item.scene().removeItem(item)
 
+        for scene in self._program_scenes.values():
+            scene.clear()
+
+        self._program_scenes.clear()
         self._program_source_items.clear()
-
-        for item in self._program_workspace_items:
-            if item.scene() is not None:
-                item.scene().removeItem(item)
-
         self._program_workspace_items.clear()
+
+        # program_scene se mantiene como alias de compatibilidad; no se usa
+        # para renderizar una pantalla física porque mezclar EVs allí sería
+        # precisamente el error que queremos evitar.
         self.program_scene.clear()
 
-    def _update_program_scene_rect(self) -> None:
-        rect = self.program_scene.itemsBoundingRect()
-
-        if rect.isEmpty():
-            rect = QRectF(0, 0, 100, 100)
-
-        self.program_scene.setSceneRect(
-            rect.adjusted(-100, -100, 100, 100)
-        )
+    def get_program_scene(self, monitor_name):
+        return self._program_scenes.get(monitor_name)
 
     # ==========================================================
     # DELEGACIÓN
     # ==========================================================
+
+   # ==========================================================
 
     def get_monitor_item(self, monitor_name):
         return self.renderer.get_workspace_item_for_monitor(
