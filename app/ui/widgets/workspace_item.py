@@ -62,3 +62,14 @@ class WorkspaceItem(QGraphicsRectItem):
     def refresh_label(self) -> None:
         self.label.setText(self._label_text())
         self._center_label()
+
+    def set_workspace_size(self, width: float, height: float, scale: float) -> None:
+        """Actualiza el tamaño visual sin recrear el elemento ni perder el foco."""
+        self.prepareGeometryChange()
+        self.setRect(
+            0,
+            0,
+            float(width) * scale,
+            float(height) * scale,
+        )
+        self.refresh_label()
