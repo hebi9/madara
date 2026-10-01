@@ -112,8 +112,31 @@ class MonitorLayoutView(QGraphicsView):
 
         self.renderer.render_scene_for_editing(scene)
 
-        # La escena seleccionada se edita siempre en coordenadas lógicas.
-        # Nunca usamos la posición física del monitor para mover el EV.
+        # La escena seleccionada se edita en coordenadas lógicas. No
+        # sincronizamos automáticamente con el monitor físico aquí.
+        self.renderer.update_scene_rect()
+        self._update_view_from_scene()
+
+    def adopt_monitor_position(self, workspace) -> None:
+        """Usa la posición física como posición inicial al asignar un monitor."""
+        monitor_name = getattr(workspace, "monitor_name", None)
+        if not monitor_name:
+            return
+
+        position = self._monitor_positions.get(monitor_name)
+        if position is None:
+            return
+
+        position = self._to_qpointf(position)
+        workspace.x = position.x()
+        workspace.y = position.y()
+
+        for item in self.renderer.workspace_items:
+            if item.workspace is workspace:
+                item.setPos(position)
+                item.refresh_label()
+                break
+
         self.renderer.update_scene_rect()
         self._update_view_from_scene()
 
