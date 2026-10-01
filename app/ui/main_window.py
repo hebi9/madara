@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 
 from PySide6.QtCore import QPointF, Qt
+from PySide6.QtGui import QImageReader,
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -348,13 +349,23 @@ class MainWindow(QMainWindow):
         if not path:
             return
 
+        reader = QImageReader(path)
+        image_size = reader.size()
+
+        if image_size.isValid():
+            image_width = image_size.width()
+            image_height = image_size.height()
+        else:
+            image_width = 400
+            image_height = 300
+
         source = SourceDefinition(
             name=f"Imagen {len(self.selected_scene.sources) + 1}",
             type="imagen",
             x=0,
             y=0,
-            width=400,
-            height=300,
+            width=max(1, image_width),
+            height=max(1, image_height),
             path=path,
         )
         self.selected_scene.sources.append(source)
