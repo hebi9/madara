@@ -422,8 +422,10 @@ class MonitorLayoutView(QGraphicsView):
             scene = WorkspaceScene(self)
             self._program_scenes[monitor_name] = scene
 
+            # El VirtualSpace define el canvas, pero no se dibuja como
+            # rectángulo blanco. El fondo real del playback lo proporciona
+            # PlaybackWindow y permanece negro.
             workspace_item = self._create_program_workspace_item(state)
-            scene.addItem(workspace_item)
 
             for source_state in state["sources"]:
                 item = self._create_program_source_item(
