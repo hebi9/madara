@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QBrush, QPen
+from PySide6.QtCore import QPointF, QRectF
 from PySide6.QtWidgets import QGraphicsItem
 
 from app.ui.sources.source_item import SourceItem
@@ -21,9 +20,25 @@ class WorkspaceRenderer:
         self.monitor_positions = {}
         self.monitors = []
         self.editable = False
+        self._known_workspace_ids: set[int] = set()
+        self._workspace_state_initialized = False
 
     def set_workspaces(self, workspaces, monitor_positions=None, monitors=None, editable=None) -> None:
-        self.virtual_spaces = list(workspaces or [])
+        incoming = list(workspaces or [])
+
+        # La primera carga respeta exactamente las posiciones guardadas en el
+        # proyecto. En llamadas posteriores, cualquier VirtualSpace nuevo nace
+        # en el origen. Así no inventamos una cuadrícula ni un espaciado.
+        if self._workspace_state_initialized:
+            for workspace in incoming:
+                if id(workspace) not in self._known_workspace_ids:
+                    workspace.x = 0.0
+                    workspace.y = 0.0
+        else:
+            self._workspace_state_initialized = True
+
+        self._known_workspace_ids = {id(workspace) for workspace in incoming}
+        self.virtual_spaces = incoming
         self.monitor_positions = monitor_positions or {}
         self.monitors = list(monitors or [])
         if editable is not None:
@@ -46,17 +61,16 @@ class WorkspaceRenderer:
         self.graphics_scene.clear()
         self.workspace_items.clear()
 
-        x = 0.0
         for workspace in self.virtual_spaces:
             width = workspace.width * self.scale
             height = workspace.height * self.scale
             item = WorkspaceItem(workspace, width, height)
+            item.position_changed_callback = self.update_scene_rect
             item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, self.editable)
             item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
-            item.setPos(self._workspace_position(workspace, x))
+            item.setPos(self._workspace_position(workspace, 0.0))
             self.graphics_scene.addItem(item)
             self.workspace_items.append(item)
-            x += width + self.gap
 
         self.update_scene_rect()
 
@@ -157,14 +171,16 @@ class WorkspaceRenderer:
     def constrain_source_position(self, source_item, value):
         return value
 
-    def update_scene_rect(self, margin: float = 100) -> QRectF:
+    def update_scene_rect(self, margin: float = 40) -> QRectF:
+        """Ajusta el canvas al rectángulo invisible que engloba todos los EV."""
         if not self.workspace_items:
             rect = QRectF(0, 0, 100, 100)
         else:
             rect = QRectF()
             for item in self.workspace_items:
                 rect = rect.united(item.sceneBoundingRect())
-            rect.adjust(-margin, -margin, margin, margin)
+            rect = rect.adjusted(-margin, -margin, margin, margin)
+
         self.graphics_scene.setSceneRect(rect)
         return rect
 
