@@ -4,6 +4,8 @@ from PySide6.QtCore import Qt, QRectF, QTimer
 from PySide6.QtGui import QImage, QPainter
 from PySide6.QtWidgets import QWidget
 
+from app.rendering.transform import Transform
+
 
 class PlaybackWindow(QWidget):
 
@@ -74,14 +76,33 @@ class PlaybackWindow(QWidget):
 
         painter = QPainter(image)
 
+        logical_width = float(self.monitor_item.workspace.width)
+        logical_height = float(self.monitor_item.workspace.height)
+
+        transform = Transform(
+            logical_width=logical_width,
+            logical_height=logical_height,
+            physical_width=float(width),
+            physical_height=float(height),
+        )
+
+        target_width = logical_width * transform.scale
+        target_height = logical_height * transform.scale
+
+        target_rect = QRectF(
+            transform.offset_x,
+            transform.offset_y,
+            target_width,
+            target_height,
+        )
+
+        # El proyecto vive siempre en coordenadas lógicas. La resolución
+        # física solo participa aquí, al momento de presentar la salida.
+        # Así no se deforman las proporciones cuando el monitor físico
+        # tiene una relación de aspecto distinta.
         self.scene.render(
             painter,
-            QRectF(
-                0,
-                0,
-                width,
-                height,
-            ),
+            target_rect,
             monitor_rect,
             Qt.AspectRatioMode.IgnoreAspectRatio,
         )
