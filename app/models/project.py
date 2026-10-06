@@ -38,3 +38,4 @@ class VirtualSpace:
     y: float = 0
     monitor_name: str | None = None
     active_scene: Scene | None = None
+    locked: bool = False
