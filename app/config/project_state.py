@@ -89,6 +89,7 @@ class ProjectState:
                     y=y,
                     monitor_name=raw_space.get("monitor_name"),
                     active_scene=active_scene,
+                    locked=bool(raw_space.get("locked", False)),
                 )
             )
 
@@ -138,6 +139,7 @@ class ProjectState:
                     "x": space.x,
                     "y": space.y,
                     "monitor_name": space.monitor_name,
+                    "locked": bool(getattr(space, "locked", False)),
                     "active_scene_id": (
                         scene_ids.get(id(space.active_scene))
                         if space.active_scene is not None
