@@ -291,6 +291,8 @@ class MainWindow(QMainWindow):
         if self.playback_manager.is_playing:
             self.playback_manager.stop()
         else:
+            # El editor y el Programa usan el mismo snapshot lógico. Nunca
+            # se recalculan posiciones desde la disposición física de Windows.
             self.monitor_view.render_active_scenes()
             self.playback_manager.play(
                 self.monitor_view,
