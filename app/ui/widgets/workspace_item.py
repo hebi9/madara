@@ -14,6 +14,7 @@ class WorkspaceItem(QGraphicsRectItem):
         self.position_changed_callback = None
         # Factor lógico -> escena. workspace.x/y siempre son lógicos.
         self.logical_scale = 1.0
+        self.locked = bool(getattr(workspace, "locked", False))
         self.setBrush(QBrush(Qt.GlobalColor.white))
         self.setPen(QPen(Qt.GlobalColor.black, 2))
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
@@ -75,3 +76,14 @@ class WorkspaceItem(QGraphicsRectItem):
             float(height) * scale,
         )
         self.refresh_label()
+
+
+    def set_locked(self, locked: bool) -> None:
+        self.locked = bool(locked)
+        if hasattr(self.workspace, "locked"):
+            self.workspace.locked = self.locked
+        self.setFlag(
+            QGraphicsItem.GraphicsItemFlag.ItemIsMovable,
+            not self.locked,
+        )
+        self.update()
