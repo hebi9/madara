@@ -1,0 +1,9 @@
+# Caché de Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Configuración local (específica de cada equipo)
+app/config/monitor_layout.json
+app/config/shortcuts.json
+app/config/project_state.json
