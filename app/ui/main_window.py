@@ -200,7 +200,10 @@ class MainWindow(QMainWindow):
 
         self.spaces_panel = EntityListPanel("Espacios virtuales")
         self.scenes_panel = EntityListPanel("Escenas")
-        self.sources_panel = EntityListPanel("Fuentes")
+        self.sources_panel = EntityListPanel(
+            "Fuentes",
+            reorderable=True,
+        )
 
         bottom_splitter = QSplitter(Qt.Orientation.Horizontal)
         bottom_splitter.addWidget(self.spaces_panel)
@@ -221,6 +224,7 @@ class MainWindow(QMainWindow):
         self.spaces_panel.item_renamed.connect(self._rename_space)
         self.scenes_panel.item_renamed.connect(self._rename_scene)
         self.sources_panel.item_renamed.connect(self._rename_source)
+        self.sources_panel.items_reordered.connect(self._sources_reordered)
         self.spaces_panel.item_created.connect(self._create_space)
         self.scenes_panel.item_created.connect(self._create_scene)
         self.sources_panel.item_created.connect(self._create_source)
@@ -616,6 +620,21 @@ class MainWindow(QMainWindow):
 
     def _source_selected(self, source: SourceDefinition) -> None:
         self.properties_panel.set_object(source)
+
+    def _sources_reordered(self, sources: list[SourceDefinition]) -> None:
+        if self.selected_scene is None:
+            return
+
+        self.selected_scene.sources = list(sources)
+
+        # La primera fuente de la lista queda arriba visualmente y recibe
+        # el z-index más alto. El último elemento queda al fondo.
+        for index, source in enumerate(self.selected_scene.sources):
+            source.z_index = len(self.selected_scene.sources) - index
+
+        self._refresh_sources_for_scene(self.selected_scene)
+        self.monitor_view.render_scene_for_editing(self.selected_scene)
+        self._save_project_state()
 
     def _delete_source(self, source) -> None:
         if self.selected_scene is None:
