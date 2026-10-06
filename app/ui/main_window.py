@@ -373,6 +373,7 @@ class MainWindow(QMainWindow):
             width=max(1, image_width),
             height=max(1, image_height),
             path=path,
+            z_index=len(self.selected_scene.sources),
         )
         self.selected_scene.sources.append(source)
         self._refresh_sources_for_scene(self.selected_scene)
@@ -395,6 +396,7 @@ class MainWindow(QMainWindow):
             width=640 if source_type == "video" else 400,
             height=360 if source_type == "video" else 300,
             path=path,
+            z_index=len(self.selected_scene.sources),
         )
         self.selected_scene.sources.append(source)
         self._refresh_sources_for_scene(self.selected_scene)
@@ -429,6 +431,7 @@ class MainWindow(QMainWindow):
             width=800,
             height=450,
             url=url.strip(),
+            z_index=len(self.selected_scene.sources),
         )
         self.selected_scene.sources.append(source)
         self._refresh_sources_for_scene(self.selected_scene)
@@ -448,6 +451,7 @@ class MainWindow(QMainWindow):
             width=400,
             height=300,
             text="Nuevo texto",
+            z_index=len(self.selected_scene.sources),
         )
         self.selected_scene.sources.append(source)
         self._refresh_sources_for_scene(self.selected_scene)
