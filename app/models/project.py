@@ -16,6 +16,7 @@ class SourceDefinition:
     text: str = "Nuevo texto"
     font_size: int = 48
     color: str = "#FFFFFF"
+    z_index: int = 0
 
 
 @dataclass
