@@ -669,15 +669,17 @@ class MainWindow(QMainWindow):
                 self._last_space_monitor_names[id(obj)] = current_monitor
                 self._refresh_spaces()
             else:
-                # Cambiar ancho/alto no debe reconstruir el panel de
-                # propiedades en cada pulsación del QSpinBox. Actualizamos
-                # únicamente el elemento gráfico existente.
+                # Cambiar ancho/alto o bloqueo no debe reconstruir el panel
+                # completo. Actualizamos el item lógico existente.
                 for item in self.monitor_view.workspace_items:
                     if item.workspace is obj:
                         item.set_workspace_size(
                             obj.width,
                             obj.height,
                             self.monitor_view.renderer.scale,
+                        )
+                        item.set_locked(
+                            bool(getattr(obj, "locked", False))
                         )
                         break
 
