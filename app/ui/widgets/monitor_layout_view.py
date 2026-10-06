@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QGraphicsView
+from PySide6.QtGui import QColor, QPen
+from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsView
 
 from app.ui.workspace.selection_manager import SelectionManager
 from app.ui.workspace.workspace_renderer import WorkspaceRenderer
@@ -201,8 +201,10 @@ class MonitorLayoutView(QGraphicsView):
             return
 
         position = self._to_qpointf(position)
-        workspace.x = position.x()
-        workspace.y = position.y()
+        # Las posiciones físicas están en unidades de escena; el proyecto
+        # usa coordenadas lógicas.
+        workspace.x = position.x() / self.SCALE
+        workspace.y = position.y() / self.SCALE
 
         for item in self.renderer.workspace_items:
             if item.workspace is workspace:
@@ -440,6 +442,13 @@ class MonitorLayoutView(QGraphicsView):
 
                 scene.addItem(item)
                 self._program_source_items.append(item)
+
+            # Fondo blanco del EV, debajo de las fuentes.
+            background = QGraphicsRectItem(workspace_rect)
+            background.setBrush(QColor("white"))
+            background.setPen(QPen(Qt.PenStyle.NoPen))
+            background.setZValue(-1_000_000)
+            scene.addItem(background)
 
             scene.setSceneRect(workspace_rect)
 

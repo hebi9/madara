@@ -12,6 +12,8 @@ class WorkspaceItem(QGraphicsRectItem):
         super().__init__(0, 0, width, height, parent)
         self.workspace = workspace
         self.position_changed_callback = None
+        # Factor lógico -> escena. workspace.x/y siempre son lógicos.
+        self.logical_scale = 1.0
         self.setBrush(QBrush(Qt.GlobalColor.white))
         self.setPen(QPen(Qt.GlobalColor.black, 2))
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
@@ -24,8 +26,8 @@ class WorkspaceItem(QGraphicsRectItem):
 
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
             if hasattr(self.workspace, "x") and hasattr(self.workspace, "y"):
-                self.workspace.x = float(value.x())
-                self.workspace.y = float(value.y())
+                self.workspace.x = float(value.x()) / self.logical_scale
+                self.workspace.y = float(value.y()) / self.logical_scale
 
             callback = self.position_changed_callback
             if callback is not None:

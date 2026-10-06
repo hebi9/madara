@@ -65,10 +65,12 @@ class WorkspaceRenderer:
             width = workspace.width * self.scale
             height = workspace.height * self.scale
             item = WorkspaceItem(workspace, width, height)
+            item.logical_scale = self.scale
             item.position_changed_callback = self._workspace_position_changed
             item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, self.editable)
             item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
-            item.setPos(self._workspace_position(workspace, 0.0))
+            position = self._workspace_position(workspace, 0.0)
+            item.setPos(position.x() * self.scale, position.y() * self.scale)
             self.graphics_scene.addItem(item)
             self.workspace_items.append(item)
 
