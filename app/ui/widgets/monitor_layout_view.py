@@ -427,7 +427,16 @@ class MonitorLayoutView(QGraphicsView):
             # PlaybackWindow y permanece negro.
             workspace_item = self._create_program_workspace_item(state)
 
-            for source_state in state["sources"]:
+            ordered_sources = sorted(
+                state["sources"],
+                key=lambda source_state: getattr(
+                    source_state["source"],
+                    "z_index",
+                    0,
+                ),
+            )
+
+            for source_state in ordered_sources:
                 item = self._create_program_source_item(
                     source_state["source"],
                     source_state,
