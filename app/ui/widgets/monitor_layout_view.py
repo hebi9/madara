@@ -40,6 +40,7 @@ class MonitorLayoutView(QGraphicsView):
         # y ocupa exactamente el canvas lógico de su propio EV.
         self.program_scene = WorkspaceScene(self)
         self._program_scenes: dict[str, WorkspaceScene] = {}
+        self._program_workspace_by_monitor: dict[str, WorkspaceItem] = {}
 
         self._program_workspace_items: list[WorkspaceItem] = []
         self._program_source_items = []
@@ -442,9 +443,10 @@ class MonitorLayoutView(QGraphicsView):
 
             scene.setSceneRect(workspace_rect)
 
-            # Guardamos un item no añadido a la escena solamente para que
-            # PlaybackManager pueda consultar el tamaño y el monitor.
+            # El item tampoco se añade a la escena: solo representa el
+            # tamaño/monitor del EV para PlaybackManager.
             self._program_workspace_items.append(workspace_item)
+            self._program_workspace_by_monitor[monitor_name] = workspace_item
 
     def _create_program_source_item(self, source_definition, source_state):
         from app.sources.image_source import ImageSource
@@ -517,6 +519,7 @@ class MonitorLayoutView(QGraphicsView):
             scene.clear()
 
         self._program_scenes.clear()
+        self._program_workspace_by_monitor.clear()
         self._program_source_items.clear()
         self._program_workspace_items.clear()
 
@@ -535,14 +538,7 @@ class MonitorLayoutView(QGraphicsView):
         )
 
     def get_program_monitor_item(self, monitor_name):
-        for item in self._program_workspace_items:
-            if getattr(
-                item.workspace,
-                "monitor_name",
-                None,
-            ) == monitor_name:
-                return item
-        return None
+        return self._program_workspace_by_monitor.get(monitor_name)
 
     def update_source_clip(self, source_item, clip_items=None) -> None:
         self.renderer.update_source_clip(
