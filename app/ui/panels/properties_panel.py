@@ -3,6 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QFileDialog,
+    QCheckBox,
     QHBoxLayout,
     QComboBox,
     QFormLayout,
@@ -256,6 +257,18 @@ class PropertiesPanel(QWidget):
             self.form_layout.addRow(
                 "Monitor:",
                 self.monitor_combo,
+            )
+
+            self.lock_check = QCheckBox("Bloquear posición")
+            self.lock_check.setChecked(
+                bool(getattr(obj, "locked", False))
+            )
+            self.lock_check.toggled.connect(
+                self._lock_changed
+            )
+            self.form_layout.addRow(
+                "",
+                self.lock_check,
             )
 
             return
@@ -727,3 +740,12 @@ class PropertiesPanel(QWidget):
         self.object_changed.emit(
             self.current_object
         )
+
+    def _lock_changed(self, locked: bool) -> None:
+        if self.current_object is None:
+            return
+        if not hasattr(self.current_object, "locked"):
+            return
+
+        self.current_object.locked = bool(locked)
+        self.object_changed.emit(self.current_object)
