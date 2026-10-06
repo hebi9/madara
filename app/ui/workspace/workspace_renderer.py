@@ -83,7 +83,12 @@ class WorkspaceRenderer:
         if scene is None:
             return
 
-        for source_definition in scene.sources:
+        ordered_sources = sorted(
+            scene.sources,
+            key=lambda source: getattr(source, "z_index", 0),
+        )
+
+        for source_definition in ordered_sources:
             item = self.create_source_item(source_definition)
             if item is None:
                 continue
