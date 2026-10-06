@@ -46,6 +46,7 @@ class ProjectState:
                         text=str(raw_source.get("text", "Nuevo texto")),
                         font_size=int(raw_source.get("font_size", 48)),
                         color=str(raw_source.get("color", "#FFFFFF")),
+                        z_index=int(raw_source.get("z_index", 0)),
                     )
                 except (TypeError, ValueError):
                     continue
@@ -122,6 +123,7 @@ class ProjectState:
                             "text": source.text,
                             "font_size": source.font_size,
                             "color": source.color,
+                            "z_index": source.z_index,
                         }
                         for source in scene.sources
                     ],
