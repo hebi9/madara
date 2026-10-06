@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, Qt
+from PySide6.QtGui import QDropEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -18,18 +19,21 @@ class EntityListPanel(QWidget):
     item_created = Signal()
     item_deleted = Signal(object)
     item_renamed = Signal(object, str)
+    items_reordered = Signal(list)
 
     def __init__(
         self,
         title: str,
         parent=None,
+        reorderable: bool = False,
     ) -> None:
 
         super().__init__(parent)
 
         self.title = title
-
+        self.reorderable = reorderable
         self._items: list[object] = []
+        self._display_function = lambda item: str(item)
 
         self._setup_ui()
 
@@ -75,6 +79,17 @@ class EntityListPanel(QWidget):
 
         self.list_widget = QListWidget()
 
+        if self.reorderable:
+            self.list_widget.setDragDropMode(
+                QListWidget.DragDropMode.InternalMove
+            )
+            self.list_widget.setDefaultDropAction(
+                Qt.DropAction.MoveAction
+            )
+            self.list_widget.model().rowsMoved.connect(
+                self._rows_moved
+            )
+
         self.list_widget.itemSelectionChanged.connect(
             self._selection_changed
         )
@@ -115,6 +130,7 @@ class EntityListPanel(QWidget):
     ) -> None:
 
         self._items = list(items)
+        self._display_function = display_function
 
         self.list_widget.blockSignals(
             True
@@ -131,7 +147,7 @@ class EntityListPanel(QWidget):
             )
 
             list_item.setData(
-                0x0100,
+                Qt.ItemDataRole.UserRole,
                 index,
             )
 
@@ -144,6 +160,35 @@ class EntityListPanel(QWidget):
         )
 
         self._update_buttons()
+
+    def _sync_items_from_list(self) -> None:
+        reordered: list[object] = []
+
+        for row in range(self.list_widget.count()):
+            list_item = self.list_widget.item(row)
+            index = list_item.data(Qt.ItemDataRole.UserRole)
+
+            if isinstance(index, int) and 0 <= index < len(self._items):
+                reordered.append(self._items[index])
+
+        if len(reordered) == len(self._items):
+            self._items = reordered
+
+        for index, list_item in enumerate(self.list_widget.findItems("", Qt.MatchFlag.MatchContains)):
+            pass
+
+        for row in range(self.list_widget.count()):
+            self.list_widget.item(row).setData(
+                Qt.ItemDataRole.UserRole,
+                row,
+            )
+
+    def _rows_moved(self, parent, start, end, destination, row) -> None:
+        if not self.reorderable:
+            return
+
+        self._sync_items_from_list()
+        self.items_reordered.emit(list(self._items))
 
     def _selection_changed(self) -> None:
 
@@ -158,7 +203,7 @@ class EntityListPanel(QWidget):
             return
 
         index = selected[0].data(
-            0x0100
+            Qt.ItemDataRole.UserRole
         )
 
         if index is None:
@@ -167,6 +212,9 @@ class EntityListPanel(QWidget):
         self.delete_button.setEnabled(
             True
         )
+
+        if index >= len(self._items):
+            return
 
         self.item_selected.emit(
             self._items[index]
@@ -182,10 +230,10 @@ class EntityListPanel(QWidget):
             return
 
         index = selected[0].data(
-            0x0100
+            Qt.ItemDataRole.UserRole
         )
 
-        if index is None:
+        if index is None or index >= len(self._items):
             return
 
         self.item_deleted.emit(
@@ -198,10 +246,10 @@ class EntityListPanel(QWidget):
     ) -> None:
 
         index = item.data(
-            0x0100
+            Qt.ItemDataRole.UserRole
         )
 
-        if index is None:
+        if index is None or index >= len(self._items):
             return
 
         entity = self._items[index]
@@ -233,13 +281,10 @@ class EntityListPanel(QWidget):
             return None
 
         index = selected[0].data(
-            0x0100
+            Qt.ItemDataRole.UserRole
         )
 
-        if index is None:
-            return None
-
-        if index >= len(self._items):
+        if index is None or index >= len(self._items):
             return None
 
         return self._items[index]
