@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Signal, Qt
-from PySide6.QtGui import QDropEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -173,9 +172,6 @@ class EntityListPanel(QWidget):
 
         if len(reordered) == len(self._items):
             self._items = reordered
-
-        for index, list_item in enumerate(self.list_widget.findItems("", Qt.MatchFlag.MatchContains)):
-            pass
 
         for row in range(self.list_widget.count()):
             self.list_widget.item(row).setData(
