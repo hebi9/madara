@@ -332,21 +332,17 @@ class MonitorLayoutView(QGraphicsView):
 
             if scene is not None:
                 for source in scene.sources:
-                    # Las fuentes siguen siendo globales en el editor.
-                    # Para la salida de este EV se convierten a coordenadas
-                    # locales respecto de su esquina superior izquierda.
+                    # El proyecto usa coordenadas globales. En reproducción
+                    # cada EV es una salida independiente, así que calculamos
+                    # la posición local respecto al origen del EV.
                     sources.append(
                         {
                             "source": source,
-                            # Las fuentes del proyecto son coordenadas
-                            # globales. El propio EV define el origen de
-                            # cada salida física, por lo que el traslado a
-                            # coordenadas locales se hace únicamente al
-                            # construir el snapshot.
                             "x": float(source.x) - float(workspace.x),
                             "y": float(source.y) - float(workspace.y),
                             "width": float(source.width),
                             "height": float(source.height),
+                            "z_index": int(getattr(source, "z_index", 0)),
                         }
                     )
 
@@ -387,18 +383,14 @@ class MonitorLayoutView(QGraphicsView):
         workspace.monitor_name = state["monitor_name"]
         workspace.width = state["width"]
         workspace.height = state["height"]
-
-        # En la salida cada EV es un canvas independiente.
         workspace.x = 0.0
         workspace.y = 0.0
-        workspace._program_sources = state["sources"]
 
         item = WorkspaceItem(
             workspace,
             workspace.width * self.SCALE,
             workspace.height * self.SCALE,
         )
-
         item.position_changed_callback = None
         item.setFlag(
             item.GraphicsItemFlag.ItemIsMovable,
@@ -422,18 +414,19 @@ class MonitorLayoutView(QGraphicsView):
             scene = WorkspaceScene(self)
             self._program_scenes[monitor_name] = scene
 
-            # El VirtualSpace define el canvas, pero no se dibuja como
-            # rectángulo blanco. El fondo real del playback lo proporciona
-            # PlaybackWindow y permanece negro.
+            # El EV es un canvas lógico. Se deja como metadata visual invisible
+            # para que las fuentes no dependan de un rectángulo QGraphicsItem.
             workspace_item = self._create_program_workspace_item(state)
+            workspace_rect = QRectF(
+                0,
+                0,
+                state["width"] * self.SCALE,
+                state["height"] * self.SCALE,
+            )
 
             ordered_sources = sorted(
                 state["sources"],
-                key=lambda source_state: getattr(
-                    source_state["source"],
-                    "z_index",
-                    0,
-                ),
+                key=lambda item: int(item.get("z_index", 0)),
             )
 
             for source_state in ordered_sources:
@@ -447,17 +440,10 @@ class MonitorLayoutView(QGraphicsView):
                 scene.addItem(item)
                 self._program_source_items.append(item)
 
-            scene.setSceneRect(
-                QRectF(
-                    0,
-                    0,
-                    state["width"] * self.SCALE,
-                    state["height"] * self.SCALE,
-                )
-            )
+            scene.setSceneRect(workspace_rect)
 
-            # Se conserva esta lista para depuración/compatibilidad, pero
-            # cada item pertenece exclusivamente a su escena de monitor.
+            # Guardamos un item no añadido a la escena solamente para que
+            # PlaybackManager pueda consultar el tamaño y el monitor.
             self._program_workspace_items.append(workspace_item)
 
     def _create_program_source_item(self, source_definition, source_state):
@@ -534,17 +520,12 @@ class MonitorLayoutView(QGraphicsView):
         self._program_source_items.clear()
         self._program_workspace_items.clear()
 
-        # program_scene se mantiene como alias de compatibilidad; no se usa
-        # para renderizar una pantalla física porque mezclar EVs allí sería
-        # precisamente el error que queremos evitar.
         self.program_scene.clear()
 
     def get_program_scene(self, monitor_name):
         return self._program_scenes.get(monitor_name)
 
-    # ==========================================================
-    # DELEGACIÓN
-    # ==========================================================
+   # ==========================================================
 
    # ==========================================================
 
