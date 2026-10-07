@@ -15,6 +15,7 @@ class PlaybackManager:
         self,
         monitor_view,
         monitor_names: set[str],
+        audio_device_name: str | None = None,
     ) -> None:
         self.stop()
 
@@ -43,6 +44,7 @@ class PlaybackManager:
                 screen=screen,
                 scene=scene,
                 monitor_item=monitor_item,
+                audio_device_name=audio_device_name,
             )
 
             self.windows.append(window)
