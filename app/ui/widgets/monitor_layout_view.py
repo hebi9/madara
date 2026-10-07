@@ -443,6 +443,10 @@ class MonitorLayoutView(QGraphicsView):
                 scene.addItem(item)
                 self._program_source_items.append(item)
 
+                starter = getattr(item, "start_from_zero", None)
+                if starter is not None:
+                    starter()
+
             # Fondo blanco del EV, debajo de las fuentes.
             background = QGraphicsRectItem(workspace_rect)
             background.setBrush(QColor("white"))
