@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 
 from app.models.project import Scene, SourceDefinition, VirtualSpace
 from app.config.monitor_config import MonitorConfig
+from app.config.audio_config import AudioConfig
 from app.config.project_state import ProjectState
 from app.config.shortcut_config import ShortcutConfig
 from app.playback.playback_manager import PlaybackManager
@@ -41,6 +42,7 @@ class MainWindow(QMainWindow):
         self.sidebar_expanded = True
         self.playback_manager = PlaybackManager()
         self.shortcuts = ShortcutConfig.load()
+        self.audio_device_name = AudioConfig.load()
 
         # Estado del proyecto: se restaura al iniciar y se guarda en disco
         # automáticamente ante cambios relevantes y al cerrar la aplicación.
@@ -297,6 +299,7 @@ class MainWindow(QMainWindow):
             self.playback_manager.play(
                 self.monitor_view,
                 self.active_monitor_names,
+                self.audio_device_name,
             )
         self._update_play_button_text()
 
@@ -309,6 +312,7 @@ class MainWindow(QMainWindow):
             active_monitor_names=self.active_monitor_names,
             monitor_positions=self.monitor_positions,
             shortcuts=self.shortcuts,
+            audio_device_name=self.audio_device_name,
             parent=self,
         )
 
@@ -321,6 +325,9 @@ class MainWindow(QMainWindow):
 
         self.shortcuts = dialog.selected_shortcuts()
         ShortcutConfig.save(self.shortcuts)
+
+        self.audio_device_name = dialog.selected_audio_device()
+        AudioConfig.save(self.audio_device_name)
         self._setup_shortcuts()
         self._refresh_workspace_positions()
         self._save_project_state()
