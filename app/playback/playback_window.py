@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, QRectF, QTimer
 from PySide6.QtGui import QImage, QPainter
+from PySide6.QtMultimedia import QMediaDevices
 from PySide6.QtWidgets import QWidget
 
 from app.rendering.transform import Transform
@@ -16,6 +17,7 @@ class PlaybackWindow(QWidget):
         screen,
         scene,
         monitor_item,
+        audio_device_name: str | None = None,
         parent=None,
     ) -> None:
 
@@ -24,6 +26,8 @@ class PlaybackWindow(QWidget):
         self.screen = screen
         self.scene = scene
         self.monitor_item = monitor_item
+        self.audio_device_name = audio_device_name
+        self._configure_audio_output()
 
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
@@ -46,6 +50,18 @@ class PlaybackWindow(QWidget):
         self._refresh_timer = QTimer(self)
         self._refresh_timer.setInterval(self.FRAME_INTERVAL_MS)
         self._refresh_timer.timeout.connect(self.render_scene)
+
+    def _configure_audio_output(self) -> None:
+        if not self.audio_device_name:
+            return
+
+        for device in QMediaDevices.audioOutputs():
+            if device.description() == self.audio_device_name:
+                for item in self.scene.items():
+                    setter = getattr(item, "set_audio_output", None)
+                    if setter is not None:
+                        setter(device)
+                return
 
     def _configure_geometry(self) -> None:
 
