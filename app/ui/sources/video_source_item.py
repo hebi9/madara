@@ -39,23 +39,46 @@ class VideoSourceItem(SourceItem):
         self.player.setAudioOutput(self.audio_output)
         self.player.setSource(QUrl.fromLocalFile(source.path))
         self.player.mediaStatusChanged.connect(self._media_status_changed)
+        self.player.errorOccurred.connect(self._playback_error)
         self._started_from_zero = False
+        self._ready_to_play = False
         self.update_visual()
-        self.player.setPosition(0)
-        self.player.play()
+
+        # En el editor el video solo se prepara; el playback es el único
+        # responsable de iniciar el reproductor. Esto evita reinicios
+        # continuos cada vez que se redibuja el canvas.
+        if workspace_view is None:
+            self.player.play()
 
     def _media_status_changed(self, status) -> None:
-        if (
-            status == QMediaPlayer.MediaStatus.LoadedMedia
-            and not self._started_from_zero
-        ):
+        if status == QMediaPlayer.MediaStatus.LoadedMedia:
+            self._ready_to_play = True
+
+            if (
+                self.player.playbackState() == QMediaPlayer.PlaybackState.PlayingState
+                and not self._started_from_zero
+            ):
+                self.player.setPosition(0)
+                self._started_from_zero = True
+
+        elif status == QMediaPlayer.MediaStatus.EndOfMedia:
+            if self.source.loop:
+                self.player.setPosition(0)
+                self._started_from_zero = True
+                self.player.play()
+
+    def start_from_zero(self) -> None:
+        self.player.stop()
+        self._started_from_zero = False
+        self.player.setPosition(0)
+
+        if self._ready_to_play:
             self._started_from_zero = True
-            self.player.setPosition(0)
             self.player.play()
 
-        if self.source.loop and status == QMediaPlayer.MediaStatus.EndOfMedia:
-            self.player.setPosition(0)
-            self.player.play()
+    def _playback_error(self, error, error_string) -> None:
+        # El error se deja disponible para depuración sin romper el render.
+        self._last_error = error_string
 
     def update_visual(self) -> None:
         self.video_item.setSize(self.rect().size())
