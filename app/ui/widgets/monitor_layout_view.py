@@ -330,6 +330,8 @@ class MonitorLayoutView(QGraphicsView):
             if not monitor_name:
                 continue
 
+            # Playback NO usa la escena seleccionada en el panel de Escenas
+            # de forma global. Cada EV tiene su propia escena activa.
             scene = getattr(workspace, "active_scene", None)
             sources = []
 
