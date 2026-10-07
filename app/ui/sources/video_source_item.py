@@ -34,8 +34,8 @@ class VideoSourceItem(SourceItem):
         self.player = QMediaPlayer()
         self.player.setVideoOutput(self.video_item)
         self.audio_output = QAudioOutput()
-        # El editor puede mostrar el video sin duplicar el audio del programa.
-        self.audio_output.setVolume(0.0 if workspace_view is not None else 1.0)
+        # El editor solo muestra el video; el audio pertenece al playback.
+        self.audio_output.setVolume(0.0)
         self.player.setAudioOutput(self.audio_output)
         self.player.setSource(QUrl.fromLocalFile(source.path))
         self.player.mediaStatusChanged.connect(self._media_status_changed)
