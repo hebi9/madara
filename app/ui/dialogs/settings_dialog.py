@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, Qt
+from PySide6.QtMultimedia import QMediaDevices
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -28,6 +30,7 @@ class SettingsDialog(QDialog):
         active_monitor_names: set[str] | None = None,
         monitor_positions: dict[str, QPointF] | None = None,
         shortcuts: dict[str, str] | None = None,
+        audio_device_name: str | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -46,6 +49,7 @@ class SettingsDialog(QDialog):
             "play": "Ctrl+P",
             "stop": "Ctrl+Shift+P",
         }
+        self.audio_device_name = audio_device_name
 
         self._checkboxes: dict[str, QCheckBox] = {}
         self._setup_ui()
@@ -58,12 +62,14 @@ class SettingsDialog(QDialog):
         self.navigation.setFixedWidth(180)
         self.navigation.addItem(QListWidgetItem("Pantallas"))
         self.navigation.addItem(QListWidgetItem("Atajos de teclado"))
+        self.navigation.addItem(QListWidgetItem("Audio"))
         self.navigation.setCurrentRow(0)
         content_layout.addWidget(self.navigation)
 
         self.pages = QStackedWidget()
         self.pages.addWidget(self._create_screens_page())
         self.pages.addWidget(self._create_shortcuts_page())
+        self.pages.addWidget(self._create_audio_page())
         self.navigation.currentRowChanged.connect(
             self.pages.setCurrentIndex
         )
@@ -140,6 +146,36 @@ class SettingsDialog(QDialog):
         )
 
         return content
+
+    def _create_audio_page(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+
+        title = QLabel("Audio")
+        title.setStyleSheet("font-size: 22px; font-weight: bold;")
+        layout.addWidget(title)
+
+        description = QLabel(
+            "Selecciona la salida de audio que utilizará el programa durante la reproducción."
+        )
+        description.setWordWrap(True)
+        layout.addWidget(description)
+
+        self.audio_combo = QComboBox()
+        self.audio_combo.addItem("Predeterminada del sistema", None)
+
+        for device in QMediaDevices.audioOutputs():
+            self.audio_combo.addItem(
+                device.description(),
+                device.description(),
+            )
+
+        index = self.audio_combo.findData(self.audio_device_name)
+        self.audio_combo.setCurrentIndex(index if index >= 0 else 0)
+
+        layout.addWidget(self.audio_combo)
+        layout.addStretch()
+        return page
 
     def _create_shortcuts_page(self) -> QWidget:
         page = QWidget()
@@ -239,3 +275,9 @@ class SettingsDialog(QDialog):
             )
             for command, edit in self.shortcut_edits.items()
         }
+
+
+    def selected_audio_device(self) -> str | None:
+        if not hasattr(self, "audio_combo"):
+            return self.audio_device_name
+        return self.audio_combo.currentData()
