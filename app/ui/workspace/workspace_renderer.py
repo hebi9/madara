@@ -101,6 +101,9 @@ class WorkspaceRenderer:
             item.set_editable(self.editable)
             self.source_items.append(item)
             self.update_source_clip(item)
+            preview = getattr(item, "start_preview", None)
+            if preview is not None:
+                preview()
 
     def create_source_item(self, source_definition):
         from app.sources.image_source import ImageSource
@@ -175,7 +178,7 @@ class WorkspaceRenderer:
             path.addPolygon(source_item.mapFromScene(intersection))
 
         source_item._clip_path = path
-        source_item.setVisible(not path.isEmpty())
+        # source_item.setVisible(not path.isEmpty())
         source_item.update()
 
     def constrain_source_position(self, source_item, value):

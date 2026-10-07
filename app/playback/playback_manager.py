@@ -66,6 +66,15 @@ class PlaybackManager:
         if app is not None:
             app.processEvents()
 
+    def restart_monitor(self, monitor_name: str | None) -> None:
+        if not monitor_name:
+            return
+
+        for window in self.windows:
+            if isValid(window) and window.screen.name() == monitor_name:
+                window.start_videos()
+                return
+
     def _window_destroyed(self, window) -> None:
         if window in self.windows:
             self.windows.remove(window)

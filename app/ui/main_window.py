@@ -80,18 +80,23 @@ class MainWindow(QMainWindow):
         self._refresh_spaces()
         self._refresh_scenes()
 
+        for index, space in enumerate(self.virtual_spaces):
+            if space.active_scene is None and index < len(self.scenes):
+                space.active_scene = self.scenes[index]
+
         if self.virtual_spaces:
             space = self.virtual_spaces[0]
             self.spaces_panel.list_widget.setCurrentRow(0)
             self._space_selected(space)
 
-        if self.scenes:
-            scene = self.scenes[0]
-            self.scenes_panel.list_widget.setCurrentRow(0)
-            self._scene_selected(scene)
-        elif self.virtual_spaces:
-            scene = self._create_scene(self.virtual_spaces[0])
-            self._scene_selected(scene)
+        if self.selected_scene is None:
+            if self.scenes:
+                scene = self.scenes[0]
+                self.scenes_panel.list_widget.setCurrentRow(0)
+                self._scene_selected(scene)
+            elif self.virtual_spaces:
+                scene = self._create_scene(self.virtual_spaces[0])
+                self._scene_selected(scene)
 
         self._render_active_scenes()
 
@@ -522,6 +527,12 @@ class MainWindow(QMainWindow):
     def _space_selected(self, space) -> None:
         self.selected_space = space
         self.properties_panel.set_object(space)
+
+        # La escena activa se muestra para editarla, sin cambiar su asignación.
+        scene = space.active_scene
+        if scene in self.scenes and scene is not self.selected_scene:
+            self.scenes_panel.list_widget.setCurrentRow(self.scenes.index(scene))
+            self._scene_selected(scene)
         self._update_activate_button_state()
 
     def _delete_space(self, space) -> None:
@@ -535,6 +546,8 @@ class MainWindow(QMainWindow):
         self._save_project_state()
 
     def _refresh_spaces(self):
+        for space in self.virtual_spaces:
+            self._last_space_monitor_names.setdefault(id(space), space.monitor_name)
         self.spaces_panel.set_items(
             self.virtual_spaces,
             lambda item: f"{item.name}  •  {item.width} × {item.height}",
@@ -570,6 +583,9 @@ class MainWindow(QMainWindow):
 
     def _scene_selected(self, scene) -> None:
         self.selected_scene = scene
+        if self.selected_space is not None:
+            self.selected_space.active_scene = scene
+            self._save_project_state()
         self.properties_panel.set_object(scene)
         self._refresh_sources_for_scene(scene)
         if scene.sources:
@@ -685,8 +701,11 @@ class MainWindow(QMainWindow):
                             obj.height,
                             self.monitor_view.renderer.scale,
                         )
-                        item.set_locked(
-                            bool(getattr(obj, "locked", False))
+                        locked = bool(getattr(obj, "locked", False))
+                        item.set_locked(locked)
+                        item.setFlag(
+                            item.GraphicsItemFlag.ItemIsMovable,
+                            self.monitor_view.renderer.editable and not locked,
                         )
                         break
 
@@ -723,6 +742,7 @@ class MainWindow(QMainWindow):
             return
         space.active_scene = scene
         self.monitor_view.push_scene_to_program(space)
+        self.playback_manager.restart_monitor(space.monitor_name)
         self._save_project_state()
 
     def _update_activate_button_state(self) -> None:

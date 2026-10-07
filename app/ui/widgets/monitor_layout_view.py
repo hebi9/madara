@@ -44,6 +44,7 @@ class MonitorLayoutView(QGraphicsView):
 
         self._program_workspace_items: list[WorkspaceItem] = []
         self._program_source_items = []
+        self._program_source_items_by_monitor: dict[str, list] = {}
         self._program_snapshot = None
 
         self._settings_scene = None
@@ -323,48 +324,53 @@ class MonitorLayoutView(QGraphicsView):
     # ==========================================================
 
     def capture_program_snapshot(self) -> None:
-        snapshot = []
+        self._program_snapshot = [
+            self._program_state_for_workspace(workspace)
+            for workspace in self.virtual_spaces
+            if getattr(workspace, "monitor_name", None)
+        ]
 
-        for workspace in self.virtual_spaces:
-            monitor_name = getattr(workspace, "monitor_name", None)
-            if not monitor_name:
-                continue
+    def _program_state_for_workspace(self, workspace):
+        scene = getattr(workspace, "active_scene", None)
+        sources = []
 
-            # Playback NO usa la escena seleccionada en el panel de Escenas
-            # de forma global. Cada EV tiene su propia escena activa.
-            scene = getattr(workspace, "active_scene", None)
-            sources = []
-
-            if scene is not None:
-                for source in scene.sources:
-                    # El proyecto usa coordenadas globales. En reproducción
-                    # cada EV es una salida independiente, así que calculamos
-                    # la posición local respecto al origen del EV.
-                    sources.append(
-                        {
-                            "source": source,
-                            "x": float(source.x) - float(workspace.x),
-                            "y": float(source.y) - float(workspace.y),
-                            "width": float(source.width),
-                            "height": float(source.height),
-                            "z_index": int(getattr(source, "z_index", 0)),
-                        }
-                    )
-
-            snapshot.append(
-                {
-                    "workspace": workspace,
-                    "monitor_name": monitor_name,
-                    "width": float(workspace.width),
-                    "height": float(workspace.height),
-                    "x": float(getattr(workspace, "x", 0.0)),
-                    "y": float(getattr(workspace, "y", 0.0)),
-                    "scene": scene,
-                    "sources": sources,
-                }
+        if scene is not None:
+            workspace_rect = QRectF(
+                float(workspace.x),
+                float(workspace.y),
+                float(workspace.width),
+                float(workspace.height),
             )
+            for source in scene.sources:
+                source_rect = QRectF(
+                    float(source.x),
+                    float(source.y),
+                    float(source.width),
+                    float(source.height),
+                )
+                if not workspace_rect.intersects(source_rect):
+                    continue
+                sources.append(
+                    {
+                        "source": source,
+                        "x": float(source.x) - float(workspace.x),
+                        "y": float(source.y) - float(workspace.y),
+                        "width": float(source.width),
+                        "height": float(source.height),
+                        "z_index": int(getattr(source, "z_index", 0)),
+                    }
+                )
 
-        self._program_snapshot = snapshot
+        return {
+            "workspace": workspace,
+            "monitor_name": workspace.monitor_name,
+            "width": float(workspace.width),
+            "height": float(workspace.height),
+            "x": float(getattr(workspace, "x", 0.0)),
+            "y": float(getattr(workspace, "y", 0.0)),
+            "scene": scene,
+            "sources": sources,
+        }
 
     def render_active_scenes(self, capture_snapshot: bool = True) -> None:
         if capture_snapshot or self._program_snapshot is None:
@@ -373,11 +379,28 @@ class MonitorLayoutView(QGraphicsView):
         self._render_program_snapshot()
 
     def activate_scene_for_program(self, space) -> None:
-        self.capture_program_snapshot()
-        self._render_program_snapshot()
+        self.push_scene_to_program(space)
 
     def push_scene_to_program(self, space) -> None:
-        self.activate_scene_for_program(space)
+        monitor_name = getattr(space, "monitor_name", None)
+        if not monitor_name:
+            return
+
+        if (
+            self._program_snapshot is None
+            or monitor_name not in self._program_scenes
+        ):
+            self.capture_program_snapshot()
+            self._render_program_snapshot()
+            return
+
+        state = self._program_state_for_workspace(space)
+        self._populate_program_scene(state, self._program_scenes[monitor_name])
+
+        for index, current in enumerate(self._program_snapshot):
+            if current["monitor_name"] == monitor_name:
+                self._program_snapshot[index] = state
+                break
 
     def _create_program_workspace_item(self, state):
         class _ProgramWorkspace:
@@ -419,49 +442,58 @@ class MonitorLayoutView(QGraphicsView):
             scene = WorkspaceScene(self)
             self._program_scenes[monitor_name] = scene
 
-            # El EV es un canvas lógico. Se deja como metadata visual invisible
-            # para que las fuentes no dependan de un rectángulo QGraphicsItem.
             workspace_item = self._create_program_workspace_item(state)
-            workspace_rect = QRectF(
-                0,
-                0,
-                state["width"] * self.SCALE,
-                state["height"] * self.SCALE,
-            )
-
-            ordered_sources = sorted(
-                state["sources"],
-                key=lambda item: int(item.get("z_index", 0)),
-            )
-
-            for source_state in ordered_sources:
-                item = self._create_program_source_item(
-                    source_state["source"],
-                    source_state,
-                )
-                if item is None:
-                    continue
-
-                scene.addItem(item)
-                self._program_source_items.append(item)
-
-                starter = getattr(item, "start_from_zero", None)
-                if starter is not None:
-                    starter()
-
-            # Fondo blanco del EV, debajo de las fuentes.
-            background = QGraphicsRectItem(workspace_rect)
-            background.setBrush(QColor("white"))
-            background.setPen(QPen(Qt.PenStyle.NoPen))
-            background.setZValue(-1_000_000)
-            scene.addItem(background)
-
-            scene.setSceneRect(workspace_rect)
+            self._populate_program_scene(state, scene)
 
             # El item tampoco se añade a la escena: solo representa el
             # tamaño/monitor del EV para PlaybackManager.
             self._program_workspace_items.append(workspace_item)
             self._program_workspace_by_monitor[monitor_name] = workspace_item
+
+    def _populate_program_scene(self, state, scene) -> None:
+        monitor_name = state["monitor_name"]
+        for item in self._program_source_items_by_monitor.get(monitor_name, []):
+            dispose = getattr(item, "dispose", None)
+            if dispose is not None:
+                dispose()
+
+        scene.clear()
+        source_items = []
+        workspace_rect = QRectF(
+            0,
+            0,
+            state["width"] * self.SCALE,
+            state["height"] * self.SCALE,
+        )
+
+        ordered_sources = sorted(
+            state["sources"],
+            key=lambda item: int(item.get("z_index", 0)),
+        )
+        for source_state in ordered_sources:
+            item = self._create_program_source_item(
+                source_state["source"],
+                source_state,
+            )
+            if item is None:
+                continue
+            item.setZValue(int(source_state.get("z_index", 0)))
+            scene.addItem(item)
+            source_items.append(item)
+
+        background = QGraphicsRectItem(workspace_rect)
+        background.setBrush(QColor("white"))
+        background.setPen(QPen(Qt.PenStyle.NoPen))
+        background.setZValue(-1_000_000)
+        scene.addItem(background)
+        scene.setSceneRect(workspace_rect)
+
+        self._program_source_items_by_monitor[monitor_name] = source_items
+        self._program_source_items = [
+            item
+            for items in self._program_source_items_by_monitor.values()
+            for item in items
+        ]
 
     def _create_program_source_item(self, source_definition, source_state):
         from app.sources.image_source import ImageSource
@@ -514,6 +546,10 @@ class MonitorLayoutView(QGraphicsView):
             workspace_view=None,
         )
         item.set_editable(False)
+        item.setFlag(
+            item.GraphicsItemFlag.ItemIsSelectable,
+            False,
+        )
         item.set_source_size(
             source_state["width"],
             source_state["height"],
@@ -536,6 +572,7 @@ class MonitorLayoutView(QGraphicsView):
         self._program_scenes.clear()
         self._program_workspace_by_monitor.clear()
         self._program_source_items.clear()
+        self._program_source_items_by_monitor.clear()
         self._program_workspace_items.clear()
 
         self.program_scene.clear()

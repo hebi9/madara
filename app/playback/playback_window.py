@@ -1,16 +1,12 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QRectF, QTimer
-from PySide6.QtGui import QImage, QPainter
+from PySide6.QtCore import QRectF, Qt
+from PySide6.QtGui import QPainter
 from PySide6.QtMultimedia import QMediaDevices
-from PySide6.QtWidgets import QWidget
-
-from app.rendering.transform import Transform
+from PySide6.QtWidgets import QFrame, QGraphicsView
 
 
-class PlaybackWindow(QWidget):
-
-    FRAME_INTERVAL_MS = 33  # ~30 FPS, suficiente para video fluido
+class PlaybackWindow(QGraphicsView):
 
     def __init__(
         self,
@@ -20,36 +16,33 @@ class PlaybackWindow(QWidget):
         audio_device_name: str | None = None,
         parent=None,
     ) -> None:
-
-        super().__init__(parent)
+        super().__init__(scene, parent)
 
         self.screen = screen
-        self.scene = scene
+        self.playback_scene = scene
         self.monitor_item = monitor_item
         self.audio_device_name = audio_device_name
-        self._configure_audio_output()
 
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.Tool
         )
-
-        self.setAttribute(
-            Qt.WidgetAttribute.WA_DeleteOnClose
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self.setFrameShape(QFrame.Shape.NoFrame)
+        self.setBackgroundBrush(Qt.GlobalColor.black)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setInteractive(False)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self.setViewportUpdateMode(
+            QGraphicsView.ViewportUpdateMode.FullViewportUpdate
         )
 
-        self.setStyleSheet(
-            "background-color: black;"
-        )
-
+        self._configure_audio_output()
         self._configure_geometry()
-
-        # Redibuja periódicamente para reflejar contenido en vivo
-        # (video, páginas web, etc.), no solo un fotograma estático.
-        self._refresh_timer = QTimer(self)
-        self._refresh_timer.setInterval(self.FRAME_INTERVAL_MS)
-        self._refresh_timer.timeout.connect(self.render_scene)
 
     def _configure_audio_output(self) -> None:
         if not self.audio_device_name:
@@ -57,119 +50,48 @@ class PlaybackWindow(QWidget):
 
         for device in QMediaDevices.audioOutputs():
             if device.description() == self.audio_device_name:
-                for item in self.scene.items():
+                for item in self.playback_scene.items():
                     setter = getattr(item, "set_audio_output", None)
                     if setter is not None:
                         setter(device)
                 return
 
     def _configure_geometry(self) -> None:
+        self.setGeometry(self.screen.geometry())
 
-        geometry = self.screen.geometry()
-
-        self.setGeometry(
-            geometry
+    def _fit_scene(self) -> None:
+        width = float(self.monitor_item.workspace.width) * 0.15
+        height = float(self.monitor_item.workspace.height) * 0.15
+        self.fitInView(
+            QRectF(0, 0, width, height),
+            Qt.AspectRatioMode.KeepAspectRatio,
         )
 
-    def render_scene(self) -> None:
-
-        # La escena recibida pertenece exclusivamente al VirtualSpace de este
-        # monitor. Su origen lógico siempre es (0, 0); por tanto no usamos
-        # ninguna coordenada global del editor para calcular la salida.
-        # Los QGraphicsItems del programa usan la misma escala lógica
-        # que el editor. El sourceRect de QGraphicsScene debe usar unidades
-        # de escena, no los pixeles lógicos del VirtualSpace.
-        scene_scale = 0.15
-        monitor_rect = QRectF(
-            0,
-            0,
-            float(self.monitor_item.workspace.width) * scene_scale,
-            float(self.monitor_item.workspace.height) * scene_scale,
-        )
-
-        width = self.screen.geometry().width()
-        height = self.screen.geometry().height()
-
-        image = QImage(
-            width,
-            height,
-            QImage.Format.Format_RGB32,
-        )
-
-        image.fill(
-            Qt.GlobalColor.black
-        )
-
-        painter = QPainter(image)
-
-        logical_width = float(self.monitor_item.workspace.width)
-        logical_height = float(self.monitor_item.workspace.height)
-
-        transform = Transform(
-            logical_width=logical_width,
-            logical_height=logical_height,
-            physical_width=float(width),
-            physical_height=float(height),
-        )
-
-        target_width = logical_width * transform.scale
-        target_height = logical_height * transform.scale
-
-        target_rect = QRectF(
-            transform.offset_x,
-            transform.offset_y,
-            target_width,
-            target_height,
-        )
-
-        # El proyecto vive siempre en coordenadas lógicas. La resolución
-        # física solo participa aquí, al momento de presentar la salida.
-        # Así no se deforman las proporciones cuando el monitor físico
-        # tiene una relación de aspecto distinta.
-        self.scene.render(
-            painter,
-            target_rect,
-            monitor_rect,
-            Qt.AspectRatioMode.IgnoreAspectRatio,
-        )
-
-        painter.end()
-
-        self._frame = image
-
-        self.update()
-
-    def paintEvent(self, event) -> None:
-
-        if not hasattr(self, "_frame"):
-            return
-
-        painter = QPainter(self)
-
-        painter.drawImage(
-            0,
-            0,
-            self._frame,
-        )
-
-        painter.end()
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._fit_scene()
 
     def show_playback(self) -> None:
-
         self._configure_geometry()
-
-        self.render_scene()
-
         self.show()
-
         self.raise_()
-
         self.activateWindow()
+        self._fit_scene()
+        self.start_videos()
 
-        self._refresh_timer.start()
+    def start_videos(self) -> None:
+        self._configure_audio_output()
+        for item in self.playback_scene.items():
+            starter = getattr(item, "start_from_zero", None)
+            if starter is not None:
+                starter()
+
+    def _stop_videos(self) -> None:
+        for item in self.playback_scene.items():
+            stopper = getattr(item, "stop_playback", None)
+            if stopper is not None:
+                stopper()
 
     def closeEvent(self, event) -> None:
-
-        self._refresh_timer.stop()
-
+        self._stop_videos()
         super().closeEvent(event)

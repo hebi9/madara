@@ -7,3 +7,4 @@ __pycache__/
 app/config/monitor_layout.json
 app/config/shortcuts.json
 app/config/project_state.json
+app/config/audio_config.json
