@@ -690,8 +690,10 @@ class MainWindow(QMainWindow):
                         )
                         break
 
+                # Cambiar propiedades de un EV no debe recentrar ni
+                # reencuadrar el canvas: eso hace parecer que sus coordenadas
+                # cambiaron. La posición lógica queda exactamente donde estaba.
                 self.monitor_view.renderer.update_scene_rect()
-                self.monitor_view._update_view_from_scene()
         elif isinstance(obj, SourceDefinition):
             self._refresh_sources_for_scene(self.selected_scene)
             self.monitor_view.render_scene_for_editing(self.selected_scene)
